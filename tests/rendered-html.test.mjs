@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 async function render(pathname = "/") {
@@ -38,7 +38,7 @@ test("server-renders the CMS-backed publication", async () => {
   assert.match(html, /About/);
   assert.match(html, /Principles/);
   assert.match(html, /images\/field-notes-hero\.webp/);
-  assert.match(html, /http:\/\/localhost:3000\/og\.png/);
+  assert.match(html, /http:\/\/localhost:3000\/og\.webp/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
@@ -58,9 +58,9 @@ test("server-renders the CMS console, article details, and standalone pages", as
     articleResponse.text(),
     pageResponse.text(),
   ]);
-  assert.match(consoleHtml, /Content, clearly\./);
-  assert.match(consoleHtml, /API connected/);
-  assert.match(consoleHtml, /Agent-ready discovery/);
+  assert.match(consoleHtml, /Content studio/);
+  assert.match(consoleHtml, /Human-friendly\. Agent-ready\./);
+  assert.match(consoleHtml, /SEO &amp; sharing/);
   assert.match(articleHtml, /<title>Hello from Kujo CMS — Field Notes<\/title>/i);
   assert.match(articleHtml, /A CMS that stays out of the frontend/);
   assert.match(articleHtml, /Keep control where it belongs/);
@@ -81,4 +81,18 @@ test("removes the disposable starter surface", async () => {
   assert.match(layout, /Field Notes — Powered by Kujo CMS/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
+});
+
+test("ships WebP-only raster assets and keeps CMS media private from studio payloads", async () => {
+  const publicRoot = new URL("../public/", import.meta.url);
+  const imageRoot = new URL("../public/images/", import.meta.url);
+  const assets = [...await readdir(publicRoot), ...await readdir(imageRoot)];
+  const legacyRaster = assets.filter((name) => /\.(?:png|jpe?g)$/i.test(name));
+  assert.deepEqual(legacyRaster, []);
+  assert.ok(assets.filter((name) => /\.webp$/i.test(name)).length >= 4);
+
+  const cmsRoute = await readFile(new URL("../app/api/cms/route.ts", import.meta.url), "utf8");
+  assert.match(cmsRoute, /key !== "meta_json"/);
+  assert.match(cmsRoute, /Cache-Control.*max-age=31536000, immutable/);
+  assert.match(cmsRoute, /CMS Studio is local-only/);
 });

@@ -107,6 +107,20 @@ export function getEntryMeta(entry: CmsEntry): Record<string, unknown> {
   }
 }
 
+export function getEntrySeo(entry: CmsEntry) {
+  const meta = getEntryMeta(entry);
+  const seo = meta.seo && typeof meta.seo === "object" ? meta.seo as Record<string, unknown> : {};
+  return {
+    title: typeof seo.title === "string" && seo.title ? seo.title : entry.title,
+    description: typeof seo.description === "string" && seo.description ? seo.description : entry.excerpt,
+    canonicalUrl: typeof seo.canonical_url === "string" ? seo.canonical_url : "",
+    image: typeof seo.og_image_url === "string" && seo.og_image_url
+      ? seo.og_image_url
+      : typeof meta.cover_image === "string" ? meta.cover_image : "",
+    schemaType: typeof seo.schema_type === "string" ? seo.schema_type : "",
+  };
+}
+
 export function getCmsHealth() {
   return cmsGet<CmsHealth>("/health");
 }

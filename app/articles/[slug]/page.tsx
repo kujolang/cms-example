@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 import type { Metadata } from "next";
-import { formatCmsDate, getArticle, getEntryMeta } from "../../../lib/cms";
+import { formatCmsDate, getArticle, getEntryMeta, getEntrySeo } from "../../../lib/cms";
 
 type ArticlePageProps = { params: Promise<{ slug: string }> };
 
@@ -17,15 +17,13 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   const article = await getArticle(slug);
   if (!article) return { title: "Article not found" };
 
-  const title = article.title;
-  const description = article.excerpt;
-  const meta = getEntryMeta(article);
-  const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : undefined;
+  const seo = getEntrySeo(article);
   return {
-    title,
-    description,
-    openGraph: { title, description, type: "article", images: coverImage ? [coverImage] : [] },
-    twitter: { card: "summary_large_image", title, description, images: coverImage ? [coverImage] : [] },
+    title: seo.title,
+    description: seo.description,
+    alternates: seo.canonicalUrl ? { canonical: seo.canonicalUrl } : undefined,
+    openGraph: { title: seo.title, description: seo.description, type: "article", images: seo.image ? [seo.image] : [] },
+    twitter: { card: "summary_large_image", title: seo.title, description: seo.description, images: seo.image ? [seo.image] : [] },
   };
 }
 
@@ -59,7 +57,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           <span>By {article.author_id}</span>
           <time>{formatCmsDate(article.published_at)}</time>
         </div>
-        <img className="detail-image" src={coverImage} width="1672" height="941" alt="Editorial illustration for this field note" />
+        <img className="detail-image" src={coverImage} width="1672" height="941" fetchPriority="high" decoding="async" alt={`Editorial illustration for ${article.title}`} />
         <p className="article-deck">{article.excerpt}</p>
         <div className="article-body">{renderBody(article.body)}</div>
       </article>

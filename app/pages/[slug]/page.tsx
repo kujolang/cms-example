@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 import type { Metadata } from "next";
-import { getEntryMeta, getPage } from "../../../lib/cms";
+import { getEntryMeta, getEntrySeo, getPage } from "../../../lib/cms";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -15,12 +15,13 @@ function renderBody(body: string) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const page = await getPage((await params).slug);
   if (!page) return { title: "Page not found" };
-  const meta = getEntryMeta(page);
-  const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : undefined;
+  const seo = getEntrySeo(page);
   return {
-    title: page.title,
-    description: page.excerpt,
-    openGraph: { title: page.title, description: page.excerpt, images: coverImage ? [coverImage] : [] },
+    title: seo.title,
+    description: seo.description,
+    alternates: seo.canonicalUrl ? { canonical: seo.canonicalUrl } : undefined,
+    openGraph: { title: seo.title, description: seo.description, images: seo.image ? [seo.image] : [] },
+    twitter: { card: "summary_large_image", title: seo.title, description: seo.description, images: seo.image ? [seo.image] : [] },
   };
 }
 
@@ -41,7 +42,7 @@ export default async function EditorialPage({ params }: PageProps) {
         <p className="eyebrow">Published page from Kujo CMS</p>
         <h1>{page.title}</h1>
         <p className="article-deck">{page.excerpt}</p>
-        <img className="detail-image" src={coverImage} width="1672" height="941" alt="Editorial illustration for this page" />
+        <img className="detail-image" src={coverImage} width="1672" height="941" fetchPriority="high" decoding="async" alt={`Editorial illustration for ${page.title}`} />
         <div className="article-body">{renderBody(page.body)}</div>
       </article>
       <footer><p>This standalone page is rendered from the CMS page model.</p><a href="/cms">Inspect the backend →</a></footer>

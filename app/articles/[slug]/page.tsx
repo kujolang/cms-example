@@ -1,5 +1,6 @@
+/* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 import type { Metadata } from "next";
-import { formatCmsDate, getArticle } from "../../../lib/cms";
+import { formatCmsDate, getArticle, getEntryMeta } from "../../../lib/cms";
 
 type ArticlePageProps = { params: Promise<{ slug: string }> };
 
@@ -18,11 +19,13 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
   const title = article.title;
   const description = article.excerpt;
+  const meta = getEntryMeta(article);
+  const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : undefined;
   return {
     title,
     description,
-    openGraph: { title, description, type: "article", images: [] },
-    twitter: { card: "summary", title, description, images: [] },
+    openGraph: { title, description, type: "article", images: coverImage ? [coverImage] : [] },
+    twitter: { card: "summary_large_image", title, description, images: coverImage ? [coverImage] : [] },
   };
 }
 
@@ -39,6 +42,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     );
   }
 
+  const meta = getEntryMeta(article);
+  const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : "/images/clarity-context-control.webp";
+
   return (
     <main>
       <header className="site-header">
@@ -53,6 +59,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           <span>By {article.author_id}</span>
           <time>{formatCmsDate(article.published_at)}</time>
         </div>
+        <img className="detail-image" src={coverImage} width="1672" height="941" alt="Editorial illustration for this field note" />
         <p className="article-deck">{article.excerpt}</p>
         <div className="article-body">{renderBody(article.body)}</div>
       </article>

@@ -1,4 +1,11 @@
-import { formatCmsDate, getArticles, type CmsEntry } from "../lib/cms";
+/* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
+import {
+  formatCmsDate,
+  getArticles,
+  getEntryMeta,
+  getPages,
+  type CmsEntry,
+} from "../lib/cms";
 
 const principles = [
   ["Clarity", "A public content API with predictable, inspectable responses."],
@@ -8,10 +15,14 @@ const principles = [
 
 export default async function Home() {
   let articles: CmsEntry[] = [];
+  let pages: CmsEntry[] = [];
   let cmsOnline = true;
 
   try {
-    articles = (await getArticles()).items;
+    [articles, pages] = await Promise.all([
+      getArticles().then((result) => result.items),
+      getPages().then((result) => result.items),
+    ]);
   } catch {
     cmsOnline = false;
   }
@@ -22,21 +33,29 @@ export default async function Home() {
         <a className="wordmark" href="/">KUJO / FIELD NOTES</a>
         <nav aria-label="Primary navigation">
           <a href="#articles">Articles</a>
+          {pages.map((page) => <a href={`/pages/${page.slug}`} key={page.id}>{page.title}</a>)}
           <a className="button button-small" href="/cms">CMS console</a>
         </nav>
       </header>
 
       <section className="hero">
-        <p className="eyebrow">
-          <span className={`status-dot ${cmsOnline ? "" : "status-dot-offline"}`} />
-          {cmsOnline ? "Live content from Kujo CMS" : "CMS connection unavailable"}
-        </p>
-        <h1>Ideas with enough room to become useful.</h1>
-        <p className="hero-copy">
-          Field Notes is an independent publication about building software with
-          clarity, context, and control.
-        </p>
-        <a className="button" href="#articles">Read the latest</a>
+        <div className="hero-content">
+          <p className="eyebrow">
+            <span className={`status-dot ${cmsOnline ? "" : "status-dot-offline"}`} />
+            {cmsOnline ? "Live content from Kujo CMS" : "CMS connection unavailable"}
+          </p>
+          <h1>Ideas with enough room to become useful.</h1>
+          <p className="hero-copy">
+            Field Notes is an independent publication about building software with
+            clarity, context, and control.
+          </p>
+          <a className="button" href="#articles">Read the latest</a>
+        </div>
+        <div className="hero-visual" aria-label="Abstract green, lime, and lavender studio composition">
+          <span className="hero-orbit hero-orbit-large" />
+          <span className="hero-orbit hero-orbit-small" />
+          <img src="/images/field-notes-hero.webp" width="1586" height="992" alt="Sculptural green and lime forms in a sunlit studio" />
+        </div>
       </section>
 
       <section className="principles" aria-label="Publication principles">
@@ -65,10 +84,14 @@ export default async function Home() {
         )}
 
         <div className="article-grid">
-          {articles.map((article, index) => (
+          {articles.map((article, index) => {
+            const meta = getEntryMeta(article);
+            const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : "/images/clarity-context-control.webp";
+            return (
             <a className="article-card" href={`/articles/${article.slug}`} key={article.id}>
-              <div className={`card-art card-art-${(index % 3) + 1}`} aria-hidden="true">
-                <span>0{index + 1}</span>
+              <div className="card-art">
+                <img src={coverImage} width="1672" height="941" alt="" />
+                <span aria-hidden="true">0{index + 1}</span>
               </div>
               <div className="card-meta">
                 <span>{article.terms?.[0]?.name ?? "Field Note"}</span>
@@ -78,7 +101,7 @@ export default async function Home() {
               <p>{article.excerpt}</p>
               <span className="read-link">Read article →</span>
             </a>
-          ))}
+          )})}
         </div>
 
         {cmsOnline && articles.length === 0 && (

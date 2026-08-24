@@ -33,30 +33,41 @@ test("server-renders the CMS-backed publication", async () => {
   assert.match(html, /Ideas with enough room to become useful\./);
   assert.match(html, /Live content from Kujo CMS/);
   assert.match(html, /Hello from Kujo CMS/);
+  assert.match(html, /Designing content systems for agents/);
+  assert.match(html, /Clarity, context, and control are product features/);
+  assert.match(html, /About/);
+  assert.match(html, /Principles/);
+  assert.match(html, /images\/field-notes-hero\.webp/);
   assert.match(html, /http:\/\/localhost:3000\/og\.png/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
-test("server-renders the CMS console and article detail", async () => {
-  const [consoleResponse, articleResponse] = await Promise.all([
+test("server-renders the CMS console, article details, and standalone pages", async () => {
+  const [consoleResponse, articleResponse, pageResponse] = await Promise.all([
     render("/cms"),
     render("/articles/hello-kujo"),
+    render("/pages/principles"),
   ]);
 
   assert.equal(consoleResponse.status, 200);
   assert.equal(articleResponse.status, 200);
+  assert.equal(pageResponse.status, 200);
 
-  const [consoleHtml, articleHtml] = await Promise.all([
+  const [consoleHtml, articleHtml, pageHtml] = await Promise.all([
     consoleResponse.text(),
     articleResponse.text(),
+    pageResponse.text(),
   ]);
   assert.match(consoleHtml, /Content, clearly\./);
   assert.match(consoleHtml, /API connected/);
   assert.match(consoleHtml, /Agent-ready discovery/);
   assert.match(articleHtml, /<title>Hello from Kujo CMS — Field Notes<\/title>/i);
-  assert.match(articleHtml, /This body is stored by the CMS and rendered by the frontend\./);
-  assert.doesNotMatch(articleHtml, /property="og:image"/i);
-  assert.doesNotMatch(articleHtml, /name="twitter:image"/i);
+  assert.match(articleHtml, /A CMS that stays out of the frontend/);
+  assert.match(articleHtml, /Keep control where it belongs/);
+  assert.match(articleHtml, /property="og:image"/i);
+  assert.match(pageHtml, /<title>Principles — Field Notes<\/title>/i);
+  assert.match(pageHtml, /Build for understanding/);
+  assert.match(pageHtml, /Keep the frontend free/);
 });
 
 test("removes the disposable starter surface", async () => {

@@ -58,7 +58,7 @@ test("server-renders the CMS console, article details, and standalone pages", as
     articleResponse.text(),
     pageResponse.text(),
   ]);
-  assert.match(consoleHtml, /Content studio/);
+  assert.match(consoleHtml, /Dashboard/);
   assert.match(consoleHtml, /Human-friendly\. Agent-ready\./);
   assert.match(consoleHtml, /SEO &amp; sharing/);
   assert.match(articleHtml, /<title>Hello from Kujo CMS — Field Notes<\/title>/i);
@@ -68,6 +68,25 @@ test("server-renders the CMS console, article details, and standalone pages", as
   assert.match(pageHtml, /<title>Principles — Field Notes<\/title>/i);
   assert.match(pageHtml, /Build for understanding/);
   assert.match(pageHtml, /Keep the frontend free/);
+});
+
+test("server-renders separate CMS administration routes", async () => {
+  const responses = await Promise.all([
+    render("/cms/content"),
+    render("/cms/content/new"),
+    render("/cms/content/1"),
+    render("/cms/taxonomies"),
+    render("/cms/seo"),
+  ]);
+  responses.forEach((response) => assert.equal(response.status, 200));
+  const [content, create, edit, taxonomies, seo] = await Promise.all(responses.map((response) => response.text()));
+  assert.match(content, /Search by title or slug/);
+  assert.doesNotMatch(content, /Markdown content/);
+  assert.match(create, /Create content/);
+  assert.match(edit, /Edit content/);
+  assert.match(taxonomies, /Organize the publication/);
+  assert.match(seo, /Search and social presentation/);
+  assert.match(content, /tabler-icon/);
 });
 
 test("removes the disposable starter surface", async () => {

@@ -13,7 +13,7 @@ It includes:
 
 The frontend is a separate application. It only reads published content from the CMS public API; write credentials stay in the local seed script.
 
-The CMS Studio provides a complete local editorial workflow: create articles or pages, edit Markdown with a rendered preview, manage status and scheduling, assign taxonomy terms, create new terms, edit SEO and custom metadata, upload social images, and save revision snapshots before updates. Image uploads are resized and converted to WebP in the browser, then persisted through the CMS media library. The studio write proxy is intentionally restricted to loopback hosts; add production authentication and object storage before exposing it on a public deployment.
+The CMS Studio provides a familiar multi-page administration flow: `/cms` is a dashboard, `/cms/content` is a browse-first content list, and creation, editing, taxonomies, and SEO reporting each have dedicated routes. Editors can create articles or pages, edit Markdown with a rendered preview, manage status and scheduling, assign taxonomy terms, create new terms, edit SEO and custom metadata, upload social images, and save revision snapshots before updates. The interface uses Tabler Icons throughout. Image uploads are resized and converted to WebP in the browser, then persisted through the CMS media library. The studio write proxy is intentionally restricted to loopback hosts; add production authentication and object storage before exposing it on a public deployment.
 
 All shipped raster assets use WebP. Public article cards lazy-load images, while above-the-fold and detail images carry explicit dimensions and priority hints.
 

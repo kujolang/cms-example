@@ -2,6 +2,29 @@
 /* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  IconArticle,
+  IconBold,
+  IconChartDots3,
+  IconChevronRight,
+  IconCode,
+  IconDeviceFloppy,
+  IconEdit,
+  IconExternalLink,
+  IconFileDescription,
+  IconFileText,
+  IconH2,
+  IconItalic,
+  IconLayoutDashboard,
+  IconLink,
+  IconList,
+  IconPhoto,
+  IconPlus,
+  IconSearch,
+  IconTags,
+  IconTrash,
+  IconUpload,
+} from "@tabler/icons-react";
 
 type Term = { id: number; name: string; slug: string };
 type Taxonomy = { id: number; taxonomy_key: string; label: string; description: string; terms: Term[] };
@@ -156,10 +179,22 @@ function MarkdownPreview({ markdown }: { markdown: string }) {
   })}</div>;
 }
 
-export default function CmsStudio() {
+type StudioView = "dashboard" | "content" | "new" | "edit" | "taxonomies" | "seo";
+
+const navItems = [
+  { href: "/cms", label: "Dashboard", view: "dashboard", icon: IconLayoutDashboard },
+  { href: "/cms/content", label: "Content", view: "content", icon: IconFileText },
+  { href: "/cms/taxonomies", label: "Taxonomies", view: "taxonomies", icon: IconTags },
+  { href: "/cms/seo", label: "SEO & sharing", view: "seo", icon: IconChartDots3 },
+] as const;
+
+function IconButtonLabel({ icon: Icon, children }: { icon: typeof IconPlus; children: React.ReactNode }) {
+  return <><Icon size={17} stroke={1.8} aria-hidden="true" /><span>{children}</span></>;
+}
+
+export default function CmsStudio({ view = "dashboard", entryId }: { view?: StudioView; entryId?: number }) {
   const [studio, setStudio] = useState<StudioData | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
-  const [selectedId, setSelectedId] = useState(0);
   const [search, setSearch] = useState("");
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
   const [notice, setNotice] = useState("Connecting to Kujo CMS…");
@@ -184,15 +219,17 @@ export default function CmsStudio() {
       if (!active) return;
       setStudio(data);
       setNotice("All changes save to the live CMS API.");
-      if (data.entries[0]) {
-        setSelectedId(data.entries[0].id);
-        setForm(formFromEntry(data.entries[0]));
+      if (view === "new") setForm(emptyForm(data.contentTypes[0]?.type_key ?? "article"));
+      if (view === "edit") {
+        const selected = data.entries.find((entry) => entry.id === entryId);
+        if (selected) setForm(formFromEntry(selected));
+        else setNotice("That content item could not be found.");
       }
     }).catch((error) => {
       if (active) setNotice(error instanceof Error ? error.message : "CMS unavailable");
     });
     return () => { active = false; };
-  }, []);
+  }, [entryId, view]);
 
   const filteredEntries = useMemo(() => (studio?.entries ?? []).filter((entry) => {
     const query = search.trim().toLowerCase();
@@ -200,21 +237,6 @@ export default function CmsStudio() {
   }), [search, studio]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((current) => ({ ...current, [key]: value }));
-
-  const selectEntry = (entry: Entry) => {
-    setSelectedId(entry.id);
-    setForm(formFromEntry(entry));
-    setEditorMode("write");
-    setNotice(`Editing ${entry.title}`);
-  };
-
-  const createNew = () => {
-    const type = studio?.contentTypes[0]?.type_key ?? "article";
-    setSelectedId(0);
-    setForm(emptyForm(type));
-    setEditorMode("write");
-    setNotice("New draft. Choose a model, then write.");
-  };
 
   const insertMarkdown = (before: string, after = "") => {
     const textarea = bodyRef.current;
@@ -283,10 +305,10 @@ export default function CmsStudio() {
       setStudio(result.studio);
       const saved = result.studio.entries.find((item) => item.id === result.entry.id);
       if (saved) {
-        setSelectedId(saved.id);
         setForm(formFromEntry(saved));
       }
       setNotice(form.id ? "Saved. A revision snapshot was created first." : "Created and saved to Kujo CMS.");
+      if (!form.id) window.location.assign(`/cms/content/${result.entry.id}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Save failed");
     } finally {
@@ -331,100 +353,113 @@ export default function CmsStudio() {
     }
   };
 
+  const publishedCount = studio?.entries.filter((entry) => entry.status === "published").length ?? 0;
+  const draftCount = studio?.entries.filter((entry) => entry.status === "draft").length ?? 0;
+  const seoReadyCount = studio?.entries.filter((entry) => {
+    const meta = parseMeta(entry);
+    const seo = typeof meta.seo === "object" && meta.seo ? meta.seo as Record<string, unknown> : {};
+    return Boolean(seo.title && seo.description);
+  }).length ?? 0;
+
+  const header = (eyebrow: string, title: string, action = true) => <>
+    <header className="studio-topbar">
+      <div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1></div>
+      {action && <a className="button studio-action" href="/cms/content/new"><IconButtonLabel icon={IconPlus}>New content</IconButtonLabel></a>}
+    </header>
+    <p className="studio-notice" aria-live="polite">{notice}</p>
+  </>;
+
+  const contentList = (compact = false) => <div className={`content-list-panel ${compact ? "compact" : ""}`}>
+    {!compact && <div className="content-list-tools">
+      <label className="studio-search"><span>Search content</span><div className="search-control"><IconSearch size={18} aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or slug" /></div></label>
+      <span>{filteredEntries.length} items</span>
+    </div>}
+    <div className="content-table" role="table" aria-label="Content">
+      <div className="content-table-head" role="row"><span>Title</span><span>Model</span><span>Status</span><span>Updated</span><span /></div>
+      {(compact ? studio?.entries.slice(0, 5) ?? [] : filteredEntries).map((entry) => <a className="content-table-row" role="row" href={`/cms/content/${entry.id}`} key={entry.id}>
+        <span className="content-title"><b>{entry.title}</b><small>/{entry.slug}</small></span>
+        <span className="model-cell">{entry.content_type_key === "article" ? <IconArticle size={17} aria-hidden="true" /> : <IconFileDescription size={17} aria-hidden="true" />}{entry.content_type_key}</span>
+        <span><i className={`status-badge ${entry.status}`}>{entry.status}</i></span>
+        <span>{new Date(Number(entry.updated_at) * (Number(entry.updated_at) < 1_000_000_000_000 ? 1000 : 1)).toLocaleDateString()}</span>
+        <IconChevronRight size={18} aria-hidden="true" />
+      </a>)}
+    </div>
+  </div>;
+
+  const editor = <div className="editor-layout">
+    <section className="studio-editor">
+      <div className="studio-document-head">
+        <label className="studio-title-field"><span>Title</span><input value={form.title} onChange={(event) => update("title", event.target.value)} onBlur={() => { if (!form.slug) update("slug", slugify(form.title)); }} placeholder="A clear, useful title" /></label>
+        <label><span>Slug</span><div className="slug-field"><span>/</span><input value={form.slug} onChange={(event) => update("slug", slugify(event.target.value))} placeholder="entry-slug" /></div></label>
+        <label><span>Excerpt</span><textarea className="studio-excerpt" value={form.excerpt} onChange={(event) => update("excerpt", event.target.value)} placeholder="A concise summary for cards and search." /></label>
+      </div>
+      <div className="studio-editor-tabs">
+        <div><button className={editorMode === "write" ? "active" : ""} type="button" onClick={() => setEditorMode("write")}>Write</button><button className={editorMode === "preview" ? "active" : ""} type="button" onClick={() => setEditorMode("preview")}>Preview</button></div>
+        <span>Markdown</span>
+      </div>
+      {editorMode === "write" ? <>
+        <div className="markdown-toolbar" aria-label="Markdown formatting">
+          <button type="button" aria-label="Heading two" onClick={() => insertMarkdown("## ")}><IconH2 size={18} /></button>
+          <button type="button" aria-label="Bold" onClick={() => insertMarkdown("**", "**")}><IconBold size={18} /></button>
+          <button type="button" aria-label="Italic" onClick={() => insertMarkdown("_", "_")}><IconItalic size={18} /></button>
+          <button type="button" aria-label="Link" onClick={() => insertMarkdown("[", "](https://)")}><IconLink size={18} /></button>
+          <button type="button" aria-label="List" onClick={() => insertMarkdown("- ")}><IconList size={18} /></button>
+          <button type="button" aria-label="Inline code" onClick={() => insertMarkdown("`", "`")}><IconCode size={18} /></button>
+        </div>
+        <textarea ref={bodyRef} className="markdown-editor" value={form.body} onChange={(event) => update("body", event.target.value)} spellCheck="true" aria-label="Markdown content" />
+      </> : <MarkdownPreview markdown={form.body} />}
+    </section>
+    <aside className="studio-settings">
+      <section>
+        <p className="eyebrow">Publishing</p>
+        <label><span>Status</span><select value={form.status} onChange={(event) => update("status", event.target.value)}><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled</option><option value="archived">Archived</option></select></label>
+        {form.status === "scheduled" && <label><span>Publish at</span><input type="datetime-local" value={form.publishAt} onChange={(event) => update("publishAt", event.target.value)} /></label>}
+        <label><span>Unpublish at</span><input type="datetime-local" value={form.unpublishAt} onChange={(event) => update("unpublishAt", event.target.value)} /></label>
+        <label><span>Content model</span><select value={form.contentType} disabled={form.id > 0} onChange={(event) => { update("contentType", event.target.value); update("schemaType", event.target.value === "page" ? "WebPage" : "Article"); }}>{studio?.contentTypes.map((type) => <option value={type.type_key} key={type.id}>{type.singular_label}</option>)}</select></label>
+        {form.id > 0 && <small className="field-help">The model is fixed after creation to preserve its public URL contract.</small>}
+        <label><span>Author</span><input value={form.author} disabled={form.id > 0} onChange={(event) => update("author", event.target.value)} /></label>
+        <label><span>Reading time</span><input value={form.readingTime} onChange={(event) => update("readingTime", event.target.value)} placeholder="6 min" /></label>
+      </section>
+      <section>
+        <p className="eyebrow">Taxonomies</p>
+        {studio?.taxonomies.map((taxonomy) => <fieldset className="taxonomy-group" key={taxonomy.id}><legend>{taxonomy.label}</legend><div className="term-options">{taxonomy.terms.map((term) => <label className="check-label" key={term.id}><input type="checkbox" checked={form.termIds.includes(term.id)} onChange={(event) => update("termIds", event.target.checked ? [...form.termIds, term.id] : form.termIds.filter((id) => id !== term.id))} /><span>{term.name}</span></label>)}</div></fieldset>)}
+      </section>
+      <section>
+        <p className="eyebrow">SEO & sharing</p>
+        <label><span>SEO title <small>{form.seoTitle.length}/60</small></span><input value={form.seoTitle} maxLength={70} onChange={(event) => update("seoTitle", event.target.value)} placeholder={form.title || "Search title"} /></label>
+        <label><span>Meta description <small>{form.seoDescription.length}/160</small></span><textarea value={form.seoDescription} maxLength={180} onChange={(event) => update("seoDescription", event.target.value)} placeholder={form.excerpt || "Search description"} /></label>
+        <label><span>Canonical URL</span><input type="url" value={form.canonicalUrl} onChange={(event) => update("canonicalUrl", event.target.value)} placeholder="https://example.com/…" /></label>
+        <label><span>Schema type</span><select value={form.schemaType} onChange={(event) => update("schemaType", event.target.value)}><option>Article</option><option>BlogPosting</option><option>WebPage</option><option>AboutPage</option></select></label>
+        <label><span>Custom metadata JSON</span><textarea className="metadata-editor" value={form.customMeta} onChange={(event) => update("customMeta", event.target.value)} spellCheck="false" /></label>
+        <label className="upload-label"><span><IconUpload size={16} /> Social sharing image</span><input className="file-input" type="file" accept="image/*" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /></label>
+        <small className="field-help">Uploads are resized and converted to WebP automatically.</small>
+        {form.ogImage && <div className="social-preview"><img src={form.ogImage} alt="Current social sharing preview" /><button type="button" aria-label="Remove social image" onClick={() => { update("ogImage", ""); update("coverImage", ""); }}><IconTrash size={15} /></button></div>}
+        {studio && studio.media.length > 0 && <label><span><IconPhoto size={16} /> Choose from media</span><select value={form.ogImage} onChange={(event) => { update("ogImage", event.target.value); update("coverImage", event.target.value); }}><option value="">Choose an image</option>{studio.media.map((item) => <option value={item.storage_path} key={item.id}>{item.filename}</option>)}</select></label>}
+      </section>
+      <button className="button studio-save" type="button" disabled={saving || uploading} onClick={() => void saveEntry()}><IconButtonLabel icon={IconDeviceFloppy}>{saving ? "Saving…" : form.id ? "Save changes" : "Create content"}</IconButtonLabel></button>
+    </aside>
+  </div>;
+
   return (
     <main className="studio-shell">
       <aside className="studio-sidebar">
-        <a className="wordmark console-wordmark" href="/">KUJO / CMS</a>
+        <a className="wordmark console-wordmark" href="/cms">KUJO / CMS</a>
         <nav aria-label="CMS navigation">
-          <a className="active" href="/cms">Content studio</a>
-          <a href="#taxonomies">Taxonomies</a>
-          <a href="#seo">SEO & sharing</a>
+          {navItems.map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")); return <a className={active ? "active" : ""} href={item.href} key={item.href}><Icon size={19} stroke={1.7} aria-hidden="true" /><span>{item.label}</span></a>; })}
         </nav>
         <div className="studio-api-status"><span className="status-dot" /> Live CMS API</div>
-        <a className="view-site-link" href="/">← View publication</a>
+        <a className="view-site-link" href="/"><IconExternalLink size={17} aria-hidden="true" /><span>View publication</span></a>
       </aside>
 
       <section className="studio-workspace">
-        <header className="studio-topbar">
-          <div><p className="eyebrow">Human-friendly. Agent-ready.</p><h1>Content studio</h1></div>
-          <button className="button" type="button" onClick={createNew}>+ New content</button>
-        </header>
-        <p className="studio-notice" aria-live="polite">{notice}</p>
-
-        <div className="studio-layout">
-          <aside className="studio-entry-list">
-            <label className="studio-search"><span>Search content</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title or slug" /></label>
-            <div className="studio-list-meta"><span>{filteredEntries.length} entries</span><span>Updated first</span></div>
-            <div className="studio-entry-scroll">
-              {filteredEntries.map((entry) => (
-                <button className={`studio-entry-button ${selectedId === entry.id ? "selected" : ""}`} type="button" onClick={() => selectEntry(entry)} key={entry.id}>
-                  <span><b>{entry.title}</b><small>{entry.content_type_key} · {entry.status}</small></span><em>›</em>
-                </button>
-              ))}
-            </div>
-          </aside>
-
-          <section className="studio-editor">
-            <div className="studio-document-head">
-              <label className="studio-title-field"><span>Title</span><input value={form.title} onChange={(event) => update("title", event.target.value)} onBlur={() => { if (!form.slug) update("slug", slugify(form.title)); }} placeholder="A clear, useful title" /></label>
-              <label><span>Slug</span><div className="slug-field"><span>/</span><input value={form.slug} onChange={(event) => update("slug", slugify(event.target.value))} placeholder="entry-slug" /></div></label>
-              <label><span>Excerpt</span><textarea className="studio-excerpt" value={form.excerpt} onChange={(event) => update("excerpt", event.target.value)} placeholder="A concise summary for cards and search." /></label>
-            </div>
-
-            <div className="studio-editor-tabs">
-              <div><button className={editorMode === "write" ? "active" : ""} type="button" onClick={() => setEditorMode("write")}>Write</button><button className={editorMode === "preview" ? "active" : ""} type="button" onClick={() => setEditorMode("preview")}>Preview</button></div>
-              <span>Markdown</span>
-            </div>
-            {editorMode === "write" ? <>
-              <div className="markdown-toolbar" aria-label="Markdown formatting">
-                <button type="button" onClick={() => insertMarkdown("## ")}>H2</button>
-                <button type="button" onClick={() => insertMarkdown("**", "**")}><b>B</b></button>
-                <button type="button" onClick={() => insertMarkdown("_", "_")}><i>I</i></button>
-                <button type="button" onClick={() => insertMarkdown("[", "](https://)")}>Link</button>
-                <button type="button" onClick={() => insertMarkdown("- ")}>List</button>
-                <button type="button" onClick={() => insertMarkdown("`", "`")}>Code</button>
-              </div>
-              <textarea ref={bodyRef} className="markdown-editor" value={form.body} onChange={(event) => update("body", event.target.value)} spellCheck="true" aria-label="Markdown content" />
-            </> : <MarkdownPreview markdown={form.body} />}
-          </section>
-
-          <aside className="studio-settings">
-            <section>
-              <p className="eyebrow">Publishing</p>
-              <label><span>Status</span><select value={form.status} onChange={(event) => update("status", event.target.value)}><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled</option><option value="archived">Archived</option></select></label>
-              {form.status === "scheduled" && <label><span>Publish at</span><input type="datetime-local" value={form.publishAt} onChange={(event) => update("publishAt", event.target.value)} /></label>}
-              <label><span>Unpublish at</span><input type="datetime-local" value={form.unpublishAt} onChange={(event) => update("unpublishAt", event.target.value)} /></label>
-              <label><span>Content model</span><select value={form.contentType} disabled={form.id > 0} onChange={(event) => { update("contentType", event.target.value); update("schemaType", event.target.value === "page" ? "WebPage" : "Article"); }}>{studio?.contentTypes.map((type) => <option value={type.type_key} key={type.id}>{type.singular_label}</option>)}</select></label>
-              {form.id > 0 && <small className="field-help">The model is fixed after creation to preserve its public URL contract.</small>}
-              <label><span>Author</span><input value={form.author} disabled={form.id > 0} onChange={(event) => update("author", event.target.value)} /></label>
-              {form.id > 0 && <small className="field-help">Authorship is fixed after creation by the current CMS contract.</small>}
-              <label><span>Reading time</span><input value={form.readingTime} onChange={(event) => update("readingTime", event.target.value)} placeholder="6 min" /></label>
-            </section>
-
-            <section id="taxonomies">
-              <p className="eyebrow">Taxonomies</p>
-              {studio?.taxonomies.map((taxonomy) => <fieldset className="taxonomy-group" key={taxonomy.id}><legend>{taxonomy.label}</legend>
-                <div className="term-options">{taxonomy.terms.map((term) => <label className="check-label" key={term.id}><input type="checkbox" checked={form.termIds.includes(term.id)} onChange={(event) => update("termIds", event.target.checked ? [...form.termIds, term.id] : form.termIds.filter((id) => id !== term.id))} /><span>{term.name}</span></label>)}</div>
-                <div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder={`New ${taxonomy.label.toLowerCase()}`} /><button type="button" onClick={() => void createTerm(taxonomy)}>Add</button></div>
-              </fieldset>)}
-            </section>
-
-            <section id="seo">
-              <p className="eyebrow">SEO & sharing</p>
-              <label><span>SEO title <small>{form.seoTitle.length}/60</small></span><input value={form.seoTitle} maxLength={70} onChange={(event) => update("seoTitle", event.target.value)} placeholder={form.title || "Search title"} /></label>
-              <label><span>Meta description <small>{form.seoDescription.length}/160</small></span><textarea value={form.seoDescription} maxLength={180} onChange={(event) => update("seoDescription", event.target.value)} placeholder={form.excerpt || "Search description"} /></label>
-              <label><span>Canonical URL</span><input type="url" value={form.canonicalUrl} onChange={(event) => update("canonicalUrl", event.target.value)} placeholder="https://example.com/…" /></label>
-              <label><span>Schema type</span><select value={form.schemaType} onChange={(event) => update("schemaType", event.target.value)}><option>Article</option><option>BlogPosting</option><option>WebPage</option><option>AboutPage</option></select></label>
-              <label><span>Custom metadata JSON</span><textarea className="metadata-editor" value={form.customMeta} onChange={(event) => update("customMeta", event.target.value)} spellCheck="false" /></label>
-              <label><span>Social sharing image</span><input className="file-input" type="file" accept="image/*" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /></label>
-              <small className="field-help">Uploads are resized to 1600px and converted to WebP automatically.</small>
-              {form.ogImage && <div className="social-preview"><img src={form.ogImage} alt="Current social sharing preview" /><button type="button" onClick={() => { update("ogImage", ""); update("coverImage", ""); }}>Remove</button></div>}
-              {studio && studio.media.length > 0 && <label><span>Or choose from media</span><select value={form.ogImage} onChange={(event) => { update("ogImage", event.target.value); update("coverImage", event.target.value); }}><option value="">Choose an image</option>{studio.media.map((item) => <option value={item.storage_path} key={item.id}>{item.filename}</option>)}</select></label>}
-            </section>
-
-            <button className="button studio-save" type="button" disabled={saving || uploading} onClick={() => void saveEntry()}>{saving ? "Saving…" : form.id ? "Save changes" : "Create content"}</button>
-          </aside>
-        </div>
+        {view === "dashboard" && <>{header("Human-friendly. Agent-ready.", "Dashboard")}<div className="dashboard-grid">
+          <section className="dashboard-metrics"><article><IconFileText size={22} /><b>{studio?.entries.length ?? 0}</b><span>Total content</span></article><article><IconExternalLink size={22} /><b>{publishedCount}</b><span>Published</span></article><article><IconEdit size={22} /><b>{draftCount}</b><span>Drafts</span></article><article><IconChartDots3 size={22} /><b>{seoReadyCount}</b><span>SEO ready</span></article></section>
+          <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">Recently updated</p><h2>Content</h2></div><a href="/cms/content">View all <IconChevronRight size={17} /></a></div>{contentList(true)}</section>
+        </div></>}
+        {view === "content" && <>{header("Manage the publication", "Content")} {contentList()}</>}
+        {(view === "new" || view === "edit") && <>{header(view === "new" ? "Create content" : "Edit content", view === "new" ? "New content" : form.title || "Loading…", false)}<div className="editor-breadcrumb"><a href="/cms/content">Content</a><IconChevronRight size={15} /><span>{view === "new" ? "New" : form.title || "Loading"}</span></div>{editor}</>}
+        {view === "taxonomies" && <>{header("Organize the publication", "Taxonomies", false)}<div className="taxonomy-admin-grid">{studio?.taxonomies.map((taxonomy) => <section className="taxonomy-admin-card" key={taxonomy.id}><div className="panel-heading"><div><p className="eyebrow">{taxonomy.taxonomy_key}</p><h2>{taxonomy.label}</h2></div><span>{taxonomy.terms.length} terms</span></div><p>{taxonomy.description || `Manage the terms available under ${taxonomy.label}.`}</p><div className="taxonomy-term-list">{taxonomy.terms.map((term) => <span key={term.id}>{term.name}<small>/{term.slug}</small></span>)}</div><div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder={`New ${taxonomy.label.toLowerCase()}`} /><button type="button" onClick={() => void createTerm(taxonomy)} aria-label={`Add ${taxonomy.label} term`}><IconPlus size={18} /><span>Add term</span></button></div></section>)}</div></>}
+        {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<div className="seo-admin-panel"><div className="panel-heading"><div><p className="eyebrow">Content metadata</p><h2>Search readiness</h2></div><span>{seoReadyCount} of {studio?.entries.length ?? 0} ready</span></div><div className="seo-list">{studio?.entries.map((entry) => { const formEntry = formFromEntry(entry); const ready = Boolean(formEntry.seoTitle && formEntry.seoDescription); return <a href={`/cms/content/${entry.id}`} key={entry.id}><span><b>{entry.title}</b><small>{formEntry.seoTitle || "SEO title needed"}</small></span><i className={`status-badge ${ready ? "published" : "draft"}`}>{ready ? "Ready" : "Needs work"}</i><IconEdit size={18} /></a>; })}</div></div></>}
       </section>
     </main>
   );

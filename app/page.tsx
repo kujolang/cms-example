@@ -1,0 +1,95 @@
+import { formatCmsDate, getArticles, type CmsEntry } from "../lib/cms";
+
+const principles = [
+  ["Clarity", "A public content API with predictable, inspectable responses."],
+  ["Context", "Content models carry meaning across every frontend you build."],
+  ["Control", "Publishing rules, credentials, and presentation stay in your hands."],
+];
+
+export default async function Home() {
+  let articles: CmsEntry[] = [];
+  let cmsOnline = true;
+
+  try {
+    articles = (await getArticles()).items;
+  } catch {
+    cmsOnline = false;
+  }
+
+  return (
+    <main>
+      <header className="site-header">
+        <a className="wordmark" href="/">KUJO / FIELD NOTES</a>
+        <nav aria-label="Primary navigation">
+          <a href="#articles">Articles</a>
+          <a className="button button-small" href="/cms">CMS console</a>
+        </nav>
+      </header>
+
+      <section className="hero">
+        <p className="eyebrow">
+          <span className={`status-dot ${cmsOnline ? "" : "status-dot-offline"}`} />
+          {cmsOnline ? "Live content from Kujo CMS" : "CMS connection unavailable"}
+        </p>
+        <h1>Ideas with enough room to become useful.</h1>
+        <p className="hero-copy">
+          Field Notes is an independent publication about building software with
+          clarity, context, and control.
+        </p>
+        <a className="button" href="#articles">Read the latest</a>
+      </section>
+
+      <section className="principles" aria-label="Publication principles">
+        {principles.map(([title, copy], index) => (
+          <article key={title}>
+            <p className="principle-number">0{index + 1}</p>
+            <h2>{title}</h2>
+            <p>{copy}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="articles-section" id="articles">
+        <div className="section-heading split-heading">
+          <div>
+            <p className="eyebrow">Published from the CMS</p>
+            <h2>Latest field notes.</h2>
+          </div>
+          <p>{articles.length} published {articles.length === 1 ? "entry" : "entries"}</p>
+        </div>
+
+        {!cmsOnline && (
+          <p className="connection-alert">
+            Start the Kujo CMS API on port 4200, then refresh this page.
+          </p>
+        )}
+
+        <div className="article-grid">
+          {articles.map((article, index) => (
+            <a className="article-card" href={`/articles/${article.slug}`} key={article.id}>
+              <div className={`card-art card-art-${(index % 3) + 1}`} aria-hidden="true">
+                <span>0{index + 1}</span>
+              </div>
+              <div className="card-meta">
+                <span>{article.terms?.[0]?.name ?? "Field Note"}</span>
+                <time>{formatCmsDate(article.published_at)}</time>
+              </div>
+              <h3>{article.title}</h3>
+              <p>{article.excerpt}</p>
+              <span className="read-link">Read article →</span>
+            </a>
+          ))}
+        </div>
+
+        {cmsOnline && articles.length === 0 && (
+          <p className="empty-note">Publish an `article` entry and it will appear here.</p>
+        )}
+      </section>
+
+      <footer>
+        <p>Content by Kujo CMS. Frontend by whatever you choose.</p>
+        <a href="/cms">Inspect the backend →</a>
+      </footer>
+    </main>
+  );
+}

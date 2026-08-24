@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   CMS_BASE_URL,
   getArticles,
@@ -5,6 +6,11 @@ import {
   getContentTypes,
   getTaxonomies,
 } from "../../lib/cms";
+
+export const metadata: Metadata = {
+  title: "CMS Console",
+  description: "A live view of the Kujo CMS backend, content models, entries, and API discovery surfaces.",
+};
 
 const endpoints = [
   ["Capabilities", "/v1"],

@@ -27,13 +27,13 @@ export const metadata: Metadata = {
     title: "Field Notes — Powered by Kujo CMS",
     description: "An independent publication about building software with clarity, context, and control.",
     type: "website",
-    images: [{ url: "/og.png", width: 1731, height: 909, alt: "Field Notes — Ideas with enough room to become useful." }],
+    images: [{ url: "/og.webp", width: 1731, height: 909, alt: "Field Notes — Ideas with enough room to become useful." }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Field Notes — Powered by Kujo CMS",
     description: "An independent publication about building software with clarity, context, and control.",
-    images: ["/og.png"],
+    images: ["/og.webp"],
   },
 };
 

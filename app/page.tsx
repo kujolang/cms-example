@@ -54,7 +54,7 @@ export default async function Home() {
         <div className="hero-visual" aria-label="Abstract green, lime, and lavender studio composition">
           <span className="hero-orbit hero-orbit-large" />
           <span className="hero-orbit hero-orbit-small" />
-          <img src="/images/field-notes-hero.webp" width="1586" height="992" alt="Sculptural green and lime forms in a sunlit studio" />
+          <img src="/images/field-notes-hero.webp" width="1586" height="992" fetchPriority="high" decoding="async" alt="Sculptural green and lime forms in a sunlit studio" />
         </div>
       </section>
 
@@ -90,7 +90,7 @@ export default async function Home() {
             return (
             <a className="article-card" href={`/articles/${article.slug}`} key={article.id}>
               <div className="card-art">
-                <img src={coverImage} width="1672" height="941" alt="" />
+                <img src={coverImage} width="1672" height="941" loading="lazy" decoding="async" alt={`${article.title} cover artwork`} />
                 <span aria-hidden="true">0{index + 1}</span>
               </div>
               <div className="card-meta">

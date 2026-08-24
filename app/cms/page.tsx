@@ -1,10 +1,13 @@
+/* eslint-disable @next/next/no-html-link-for-pages */
 import type { Metadata } from "next";
 import {
   CMS_BASE_URL,
   getArticles,
   getCmsHealth,
   getContentTypes,
+  getPages,
   getTaxonomies,
+  type CmsEntry,
 } from "../../lib/cms";
 
 export const metadata: Metadata = {
@@ -21,15 +24,36 @@ const endpoints = [
 ];
 
 export default async function CmsConsole() {
+  let dashboard: null | {
+    health: Awaited<ReturnType<typeof getCmsHealth>>;
+    entries: CmsEntry[];
+    contentTypes: Awaited<ReturnType<typeof getContentTypes>>;
+    taxonomies: Awaited<ReturnType<typeof getTaxonomies>>;
+  } = null;
+
   try {
-    const [health, entries, contentTypes, taxonomies] = await Promise.all([
+    const [health, articles, pages, contentTypes, taxonomies] = await Promise.all([
       getCmsHealth(),
       getArticles(),
+      getPages(),
       getContentTypes(),
       getTaxonomies(),
     ]);
-
+    dashboard = { health, entries: [...articles.items, ...pages.items], contentTypes, taxonomies };
+  } catch {
     return (
+      <main className="narrow-page">
+        <a className="back-link" href="/">← Field Notes</a>
+        <p className="eyebrow">Backend unavailable</p>
+        <h1>Start Kujo CMS on port 4200.</h1>
+        <p className="hero-copy">The console will reconnect when the API is available.</p>
+      </main>
+    );
+  }
+
+  const { health, entries, contentTypes, taxonomies } = dashboard;
+
+  return (
       <main className="console-shell">
         <aside className="console-sidebar">
           <a className="wordmark console-wordmark" href="/">KUJO / CMS</a>
@@ -52,7 +76,7 @@ export default async function CmsConsole() {
           </header>
 
           <section className="metric-grid" aria-label="CMS metrics">
-            <article><span>Published entries</span><strong>{entries.total}</strong></article>
+            <article><span>Published entries</span><strong>{entries.length}</strong></article>
             <article><span>Content models</span><strong>{contentTypes.total}</strong></article>
             <article><span>Taxonomies</span><strong>{taxonomies.total}</strong></article>
             <article><span>Schema status</span><strong>{health.db}</strong></article>
@@ -67,8 +91,8 @@ export default async function CmsConsole() {
               <div className="table-row table-head" role="row">
                 <span>Title</span><span>Type</span><span>Status</span><span>Slug</span>
               </div>
-              {entries.items.map((entry) => (
-                <a className="table-row" href={`/articles/${entry.slug}`} role="row" key={entry.id}>
+              {entries.map((entry) => (
+                <a className="table-row" href={`/${entry.content_type_key === "page" ? "pages" : "articles"}/${entry.slug}`} role="row" key={`${entry.content_type_key}-${entry.id}`}>
                   <strong>{entry.title}</strong>
                   <span>{entry.content_type_key}</span>
                   <span className="published-label">{entry.status}</span>
@@ -116,15 +140,5 @@ export default async function CmsConsole() {
           </section>
         </div>
       </main>
-    );
-  } catch {
-    return (
-      <main className="narrow-page">
-        <a className="back-link" href="/">← Field Notes</a>
-        <p className="eyebrow">Backend unavailable</p>
-        <h1>Start Kujo CMS on port 4200.</h1>
-        <p className="hero-copy">The console will reconnect when the API is available.</p>
-      </main>
-    );
-  }
+  );
 }

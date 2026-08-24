@@ -5,7 +5,8 @@ This project is a working example of the site-building flow in the Kujo CMS `HOW
 It includes:
 
 - A public editorial frontend at `http://localhost:3000/`
-- Article detail routes at `http://localhost:3000/articles/:slug`
+- Full article detail routes at `http://localhost:3000/articles/:slug`
+- Standalone CMS page routes at `http://localhost:3000/pages/:slug`
 - A browser-friendly CMS console at `http://localhost:3000/cms`
 - The raw Kujo CMS backend at `http://127.0.0.1:4200/v1`
 - An isolated SQLite database in `.data/`
@@ -26,7 +27,7 @@ Start the CMS backend in the first terminal:
 npm run cms:start
 ```
 
-Seed the documented content model and example article in a second terminal:
+Seed three complete articles, two complete pages, their metadata, taxonomy, and image references in a second terminal:
 
 ```bash
 npm run cms:seed

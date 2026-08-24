@@ -70,6 +70,12 @@ export function getArticles() {
   );
 }
 
+export function getPages() {
+  return cmsGet<CmsList<CmsEntry>>(
+    "/v1/entries?content_type=page&sort_by=title&sort_dir=asc",
+  );
+}
+
 export async function getArticle(slug: string) {
   try {
     return await cmsGet<CmsEntry>(
@@ -78,6 +84,26 @@ export async function getArticle(slug: string) {
   } catch (error) {
     if (error instanceof Error && error.message.includes("404")) return null;
     throw error;
+  }
+}
+
+export async function getPage(slug: string) {
+  try {
+    return await cmsGet<CmsEntry>(
+      `/v1/entries/by-slug/page/${encodeURIComponent(slug)}`,
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) return null;
+    throw error;
+  }
+}
+
+export function getEntryMeta(entry: CmsEntry): Record<string, unknown> {
+  try {
+    const value = JSON.parse(entry.meta_json || "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
   }
 }
 

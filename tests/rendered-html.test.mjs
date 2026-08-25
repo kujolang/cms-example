@@ -2,15 +2,13 @@ import assert from "node:assert/strict";
 import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-async function render(pathname = "/") {
+async function render(pathname = "/", init = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request(`http://localhost${pathname}`, {
-      headers: { accept: "text/html" },
-    }),
+    new Request(`http://localhost${pathname}`, { ...init, headers: { accept: "text/html", ...(init.headers ?? {}) } }),
     {
       ASSETS: {
         fetch: async () => new Response("Not found", { status: 404 }),
@@ -21,6 +19,16 @@ async function render(pathname = "/") {
       passThroughOnException() {},
     },
   );
+}
+
+async function cmsSessionCookie() {
+  const response = await render("/api/cms/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", origin: "http://localhost" },
+    body: JSON.stringify({ action: "login", email: "admin@fieldnotes.local", password: "fieldnotes-demo" }),
+  });
+  assert.equal(response.status, 200);
+  return response.headers.get("set-cookie")?.split(";")[0] ?? "";
 }
 
 test("server-renders the CMS-backed publication", async () => {
@@ -43,8 +51,9 @@ test("server-renders the CMS-backed publication", async () => {
 });
 
 test("server-renders the CMS console, article details, and standalone pages", async () => {
+  const cookie = await cmsSessionCookie();
   const [consoleResponse, articleResponse, pageResponse] = await Promise.all([
-    render("/cms"),
+    render("/cms", { headers: { cookie } }),
     render("/articles/hello-kujo"),
     render("/pages/principles"),
   ]);
@@ -71,22 +80,34 @@ test("server-renders the CMS console, article details, and standalone pages", as
 });
 
 test("server-renders separate CMS administration routes", async () => {
+  const cookie = await cmsSessionCookie();
   const responses = await Promise.all([
-    render("/cms/content"),
-    render("/cms/content/new"),
-    render("/cms/content/1"),
-    render("/cms/taxonomies"),
-    render("/cms/seo"),
+    render("/cms/content", { headers: { cookie } }),
+    render("/cms/content/new", { headers: { cookie } }),
+    render("/cms/content/1", { headers: { cookie } }),
+    render("/cms/taxonomies", { headers: { cookie } }),
+    render("/cms/seo", { headers: { cookie } }),
+    render("/cms/users", { headers: { cookie } }),
   ]);
   responses.forEach((response) => assert.equal(response.status, 200));
-  const [content, create, edit, taxonomies, seo] = await Promise.all(responses.map((response) => response.text()));
+  const [content, create, edit, taxonomies, seo, users] = await Promise.all(responses.map((response) => response.text()));
   assert.match(content, /Search by title or slug/);
   assert.doesNotMatch(content, /Markdown content/);
   assert.match(create, /Create content/);
   assert.match(edit, /Edit content/);
   assert.match(taxonomies, /Organize the publication/);
   assert.match(seo, /Search and social presentation/);
+  assert.match(users, /People, roles, and access/);
   assert.match(content, /tabler-icon/);
+});
+
+test("protects CMS pages and API behind an authenticated session", async () => {
+  const [page, api, login] = await Promise.all([render("/cms"), render("/api/cms"), render("/cms/login")]);
+  assert.ok([302, 307, 308].includes(page.status));
+  assert.match(page.headers.get("location") ?? "", /^\/cms\/login/);
+  assert.equal(api.status, 401);
+  assert.equal(login.status, 200);
+  assert.match(await login.text(), /Sign in to Kujo CMS/);
 });
 
 test("removes the disposable starter surface", async () => {
@@ -113,5 +134,5 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   const cmsRoute = await readFile(new URL("../app/api/cms/route.ts", import.meta.url), "utf8");
   assert.match(cmsRoute, /key !== "meta_json"/);
   assert.match(cmsRoute, /Cache-Control.*max-age=31536000, immutable/);
-  assert.match(cmsRoute, /CMS Studio is local-only/);
+  assert.match(cmsRoute, /Sign in to access CMS Studio/);
 });

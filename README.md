@@ -75,7 +75,7 @@ CMS_REPO=/path/to/cms KUJO_BIN=/path/to/kujo npm run cms:start
 
 The frontend uses `CMS_BASE_URL=http://127.0.0.1:4200` by default. Copy `.env.example` to `.env` when you need a different backend URL or a rotated session secret.
 
-The bootstrap token in the scripts is for local development only. Rotate it and apply the production hardening guidance in the CMS HOWTO before deployment.
+Local startup generates a private bootstrap token in `.data/cms-api-token`, and the seed script reads the same token. Override `CMS_API_TOKEN` when needed and apply the production hardening guidance in the CMS HOWTO before deployment.
 
 ## Validate
 

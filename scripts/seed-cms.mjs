@@ -1,5 +1,17 @@
+import { readFile } from "node:fs/promises";
+
 const base = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
-const token = process.env.CMS_API_TOKEN ?? "change-me-in-production";
+
+async function resolveToken() {
+  if (process.env.CMS_API_TOKEN) return process.env.CMS_API_TOKEN;
+  try {
+    return (await readFile(new URL("../.data/cms-api-token", import.meta.url), "utf8")).trim();
+  } catch {
+    throw new Error("CMS demo token not found. Start the backend with `npm run cms:start` before seeding.");
+  }
+}
+
+const token = await resolveToken();
 
 async function request(path, options = {}) {
   const response = await fetch(new URL(path, base), {

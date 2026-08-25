@@ -1,16 +1,11 @@
 /* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 import type { Metadata } from "next";
 import { getEntryMeta, getEntrySeo, getPage } from "../../../lib/cms";
+import MarkdownContent from "../../MarkdownContent";
+import SiteFooter from "../../SiteFooter";
+import SiteHeader from "../../SiteHeader";
 
 type PageProps = { params: Promise<{ slug: string }> };
-
-function renderBody(body: string) {
-  return body.split(/\n{2,}/).map((block, index) => {
-    if (block.startsWith("# ")) return <h2 key={index}>{block.slice(2)}</h2>;
-    if (block.startsWith("## ")) return <h3 key={index}>{block.slice(3)}</h3>;
-    return <p key={index}>{block}</p>;
-  });
-}
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const page = await getPage((await params).slug);
@@ -33,19 +28,15 @@ export default async function EditorialPage({ params }: PageProps) {
 
   return (
     <main>
-      <header className="site-header">
-        <a className="wordmark" href="/">KUJO / FIELD NOTES</a>
-        <nav aria-label="Primary navigation"><a href="/#articles">Articles</a><a href="/cms">CMS console</a></nav>
-      </header>
+      <SiteHeader />
       <article className="article-detail page-detail">
         <a className="back-link" href="/">← Field Notes</a>
-        <p className="eyebrow">Published page from Kujo CMS</p>
         <h1>{page.title}</h1>
         <p className="article-deck">{page.excerpt}</p>
         <img className="detail-image" src={coverImage} width="1672" height="941" fetchPriority="high" decoding="async" alt={`Editorial illustration for ${page.title}`} />
-        <div className="article-body">{renderBody(page.body)}</div>
+        <MarkdownContent markdown={page.body} />
       </article>
-      <footer><p>This standalone page is rendered from the CMS page model.</p><a href="/cms">Inspect the backend →</a></footer>
+      <SiteFooter />
     </main>
   );
 }

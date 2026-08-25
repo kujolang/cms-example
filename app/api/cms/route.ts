@@ -1,5 +1,5 @@
 import { authenticateStudioRequest, hasCapability, studioUsersFor, type CmsCapability, type StudioUser } from "../../../lib/cms-auth";
-import { createCmsUser, derivePassword, getRegistrationSettings, listCmsRoles, updateCmsUser, updateRegistrationSettings } from "../../../lib/cms-user-store";
+import { createCmsUser, derivePassword, getRegistrationSettings, getSocialSharingSettings, listCmsRoles, updateCmsUser, updateRegistrationSettings, updateSocialSharingSettings } from "../../../lib/cms-user-store";
 
 const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
 const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
@@ -48,6 +48,7 @@ async function loadStudio(request: Request, currentUser: StudioUser) {
   const [roles, registration] = hasCapability(currentUser, "manage_users")
     ? await Promise.all([listCmsRoles(), getRegistrationSettings()])
     : [[], null];
+  const socialSharing = hasCapability(currentUser, "manage_seo") ? await getSocialSharingSettings() : null;
   return {
     entries: entries.items,
     contentTypes: contentTypes.items,
@@ -58,6 +59,7 @@ async function loadStudio(request: Request, currentUser: StudioUser) {
     users: hasCapability(currentUser, "manage_users") ? configuredUsers : [],
     roles,
     registration,
+    socialSharing,
   };
 }
 
@@ -168,6 +170,19 @@ export async function POST(request: Request) {
       });
       return response({ term, studio: await loadStudio(request, user) }, 201);
     }
+    if (input.action === "createTerms") {
+      if (!hasCapability(user, "manage_taxonomies")) return denied("manage_taxonomies");
+      const taxonomyId = Number(input.taxonomy_id);
+      const names = Array.isArray(input.names) ? input.names.map((value) => String(value).trim()).filter((value) => value.length >= 2).slice(0, 30) : [];
+      if (!Number.isInteger(taxonomyId) || taxonomyId <= 0 || names.length === 0) return response("Add at least one term name.", 400);
+      const terms = [];
+      for (const name of names) {
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+        if (slug.length < 2) continue;
+        terms.push(await cmsRequest(`/v1/taxonomies/${taxonomyId}/terms`, { method: "POST", headers: { "Idempotency-Key": `studio-term-${taxonomyId}-${slug}` }, body: JSON.stringify({ name, slug, description: "" }) }));
+      }
+      return response({ terms, studio: await loadStudio(request, user) }, 201);
+    }
     if (input.action === "createUser") {
       if (!hasCapability(user, "manage_users")) return denied("manage_users");
       const email = String(input.email ?? "").trim().toLowerCase();
@@ -223,6 +238,11 @@ export async function POST(request: Request) {
       if (!hasCapability(user, "manage_users")) return denied("manage_users");
       const registration = await updateRegistrationSettings({ mode: String(input.mode ?? "approval") as "open" | "approval" | "closed", default_role: String(input.default_role ?? "subscriber") });
       return response({ registration, studio: await loadStudio(request, user) });
+    }
+    if (input.action === "updateSocialSharing") {
+      if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
+      const socialSharing = await updateSocialSharingSettings({ networks: Array.isArray(input.networks) ? input.networks.map(String) : [], content_types: Array.isArray(input.content_types) ? input.content_types.map(String) : [] });
+      return response({ socialSharing, studio: await loadStudio(request, user) });
     }
 
     if (input.action !== "saveEntry") return response("Unsupported CMS action.", 400);

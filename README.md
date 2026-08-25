@@ -5,6 +5,7 @@ This project is a working example of the site-building flow in the Kujo CMS `HOW
 It includes:
 
 - A public editorial frontend at `http://localhost:3000/`
+- A stacked article archive at `http://localhost:3000/articles`
 - Full article detail routes at `http://localhost:3000/articles/:slug`
 - Standalone CMS page routes at `http://localhost:3000/pages/:slug`
 - A browser-friendly CMS console at `http://localhost:3000/cms`
@@ -13,7 +14,9 @@ It includes:
 
 The frontend is a separate application. It only reads published content from the CMS public API; write credentials stay in the local seed script.
 
-The CMS Studio provides a familiar multi-page administration flow: `/cms` is a dashboard, `/cms/content` is a browse-first content list, and creation, editing, taxonomies, SEO reporting, user management, and registration settings each have dedicated routes. Editors can create articles or pages, edit Markdown with a rendered preview, choose an active author, manage status and scheduling, assign taxonomy terms, create custom taxonomies and terms, edit SEO and custom metadata, upload social images, and save revision snapshots before updates. Every menu, select control, and icon is part of the same site kit, with icons supplied by Tabler Icons.
+The publication includes a consistent site header and footer, a live slide-out search, responsive article archive, configurable Tabler-powered share links, newsletter callouts, and a rich Markdown renderer with syntax-highlighted code and copy controls.
+
+The CMS Studio provides a familiar multi-page administration flow: `/cms` is a dashboard, `/cms/content` is a browse-first, filterable content list, and creation, editing, taxonomies, SEO reporting, social-sharing controls, user management, and registration settings each have dedicated routes. Editors can create articles or pages, edit Markdown with a rendered preview, choose an active author, manage status and scheduling, assign taxonomy terms, create custom taxonomies and comma-separated term batches, edit SEO and custom metadata, upload social images, and save revision snapshots before updates. Every menu, select control, and icon is part of the same responsive site kit, with icons supplied by Tabler Icons.
 
 The administration API is authenticated and capability-gated. Users, profiles, roles, approval state, social links, and PBKDF2 password credentials are durable records in the Kujo CMS database. Administrators can create and edit users, approve or reject registrations, suspend accounts, reset passwords, and choose whether public signup is open, approval-based, or closed. Every signed-in user has a self-service `/account` page. Local development demonstrates signed, HTTP-only, SameSite session cookies; hosted Sites can use platform-provided authenticated-user headers. The browser never receives password hashes, the CMS write token, or the signing secret. Image uploads are resized and converted to WebP in the browser, then persisted through the CMS media library; replace the local media adapter with object storage for a public deployment.
 
@@ -33,7 +36,7 @@ Start the CMS backend in the first terminal:
 npm run cms:start
 ```
 
-Seed three complete articles, two complete pages, their metadata, taxonomy, and image references in a second terminal:
+Seed five complete articles, two complete pages, their metadata, taxonomy, and image references in a second terminal:
 
 ```bash
 npm run cms:seed

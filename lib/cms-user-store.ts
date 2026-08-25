@@ -27,6 +27,7 @@ export type CmsUserRecord = {
 
 export type CmsRoleRecord = { id: number; role_key: string; name: string; permissions_json: string; is_system: number };
 export type RegistrationSettings = { mode: "open" | "approval" | "closed"; default_role: string };
+export type SocialSharingSettings = { networks: string[]; content_types: string[] };
 export type PasswordCredential = { id: number; password_hash: string; password_salt: string; password_iterations: number };
 export type CmsUserInput = Partial<Omit<CmsUserRecord, "id" | "created_at" | "updated_at" | "social_json">> & {
   social?: Record<string, string>;
@@ -120,6 +121,14 @@ export function getRegistrationSettings() {
 
 export function updateRegistrationSettings(settings: RegistrationSettings) {
   return cmsRequest<RegistrationSettings>("/v1/settings/registration", { method: "PATCH", body: JSON.stringify(settings) });
+}
+
+export function getSocialSharingSettings() {
+  return cmsRequest<SocialSharingSettings>("/v1/settings/social-sharing");
+}
+
+export function updateSocialSharingSettings(settings: SocialSharingSettings) {
+  return cmsRequest<SocialSharingSettings>("/v1/settings/social-sharing", { method: "PATCH", body: JSON.stringify(settings) });
 }
 
 export async function ensureLocalDemoUsers(request: Request) {

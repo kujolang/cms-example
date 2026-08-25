@@ -73,10 +73,36 @@ test("server-renders the CMS console, article details, and standalone pages", as
   assert.match(articleHtml, /<title>Hello from Kujo CMS — Field Notes<\/title>/i);
   assert.match(articleHtml, /A CMS that stays out of the frontend/);
   assert.match(articleHtml, /Keep control where it belongs/);
+  assert.match(articleHtml, /Share this article/);
+  assert.match(articleHtml, /Useful ideas, delivered without the noise/);
+  assert.doesNotMatch(articleHtml, /Published article/);
   assert.match(articleHtml, /property="og:image"/i);
   assert.match(pageHtml, /<title>Principles — Field Notes<\/title>/i);
   assert.match(pageHtml, /Build for understanding/);
   assert.match(pageHtml, /Keep the frontend free/);
+  assert.doesNotMatch(pageHtml, /Published page from Kujo CMS/);
+});
+
+test("renders the article archive, shared navigation, search, and rich Markdown", async () => {
+  const [archiveResponse, guideResponse, aboutResponse] = await Promise.all([render("/articles"), render("/articles/markdown-field-guide"), render("/pages/about")]);
+  assert.equal(archiveResponse.status, 200);
+  assert.equal(guideResponse.status, 200);
+  assert.equal(aboutResponse.status, 200);
+  const [archive, guide, about] = await Promise.all([archiveResponse.text(), guideResponse.text(), aboutResponse.text()]);
+  assert.match(archive, /Field Notes archive/);
+  assert.match(archive, /The complete Markdown field guide/);
+  assert.match(archive, /Search Field Notes/);
+  assert.match(guide, /Copy code/);
+  assert.match(guide, /code-block/);
+  assert.match(guide, /blockquote/);
+  for (const html of [archive, guide, about]) {
+    assert.match(html, /href="\/articles"/);
+    assert.match(html, /href="\/pages\/principles"/);
+    assert.match(html, /href="\/pages\/about"/);
+    assert.match(html, /Browse/);
+    assert.match(html, /Company/);
+    assert.match(html, /Contact/);
+  }
 });
 
 test("server-renders separate CMS administration routes", async () => {
@@ -94,11 +120,14 @@ test("server-renders separate CMS administration routes", async () => {
   responses.forEach((response) => assert.equal(response.status, 200));
   const [content, create, edit, taxonomies, seo, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
   assert.match(content, /Search by title or slug/);
+  assert.match(content, /Filter by content model/);
+  assert.match(content, /Filter by taxonomy term/);
   assert.doesNotMatch(content, /Markdown content/);
   assert.match(create, /Create content/);
   assert.match(edit, /Edit content/);
   assert.match(taxonomies, /Organize the publication/);
   assert.match(seo, /Search and social presentation/);
+  assert.match(seo, /Social networks and content types/);
   assert.match(users, /People, roles, and access/);
   assert.match(users, /New account policy/);
   assert.match(newUser, /Temporary password/);
@@ -165,4 +194,6 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   const studio = await readFile(new URL("../app/cms/CmsStudio.tsx", import.meta.url), "utf8");
   assert.match(studio, /theme-select-menu/);
   assert.doesNotMatch(studio, /<select\b|StyledSelect/);
+  assert.doesNotMatch(studio, /All changes save to the live CMS API|Authenticated CMS API/);
+  assert.match(studio, /split\(","\)/);
 });

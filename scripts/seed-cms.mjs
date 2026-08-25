@@ -178,6 +178,79 @@ Clarity without control can expose a system that is easy to misuse. Control with
     seo: { title: "Clarity, context, and control are product features", description: "Why understandable, contextual, governable infrastructure works better.", schema_type: "Article" },
   },
   {
+    content_type_key: "article",
+    title: "The complete Markdown field guide",
+    slug: "markdown-field-guide",
+    status: "published",
+    excerpt: "A visual test of headings, lists, quotations, links, inline code, and syntax-highlighted code blocks in the publication theme.",
+    body: `# Markdown should feel editorial, not unfinished
+
+Markdown gives writers a compact format and gives agents a predictable content contract. The frontend still has to turn that source into a reading experience with deliberate hierarchy, spacing, and interaction.
+
+## Headings establish the outline
+
+Every document starts with a useful hierarchy. The article title supplies the page-level heading, so content usually begins with a section heading.
+
+### A third-level heading introduces a focused idea
+
+Body copy should remain comfortable beside stronger headings. **Bold text** creates emphasis, _italics add voice_, and inline code such as \`CMS_BASE_URL\` identifies commands or symbols without interrupting the paragraph.
+
+#### Fourth-level headings work inside longer sections
+
+They should be distinct without overwhelming the article. A [well-labeled link](https://kujo.dev) should be recognizable and accessible.
+
+##### Fifth-level heading
+
+This level is useful for deeply structured reference material.
+
+###### Sixth-level heading
+
+If an article needs this depth, the hierarchy should still remain legible.
+
+## Lists make sequences scannable
+
+- Model content explicitly
+- Keep publishing credentials on trusted servers
+- Attach taxonomy and metadata to the entry
+- Render the same contract through any frontend
+
+1. Draft the content
+2. Review its context and metadata
+3. Publish through an authorized workflow
+4. Verify the public delivery path
+
+> A content system becomes dependable when its contracts are clear, its context travels with the record, and its authority remains visible.
+
+## Code deserves a professional surface
+
+The copy control uses a Tabler icon and the highlighter distinguishes keywords, strings, comments, and numbers.
+
+\`\`\`typescript
+export async function getPublishedArticle(slug: string) {
+  const response = await fetch(\`/v1/entries/by-slug/article/\${slug}\`);
+  if (!response.ok) return null;
+
+  const payload = await response.json();
+  return payload.data;
+}
+\`\`\`
+
+The same component supports command-line examples without pretending every language needs a heavyweight runtime highlighter.
+
+\`\`\`bash
+curl http://127.0.0.1:4200/v1/entries?content_type=article
+\`\`\`
+
+---
+
+## The goal is confidence
+
+This article is both documentation and a visual fixture. It ensures common Markdown structures stay polished as the theme evolves, while the source remains readable to editors, developers, and agents.`,
+    author_id: "editorial-team",
+    meta: { cover_image: "/images/agentic-systems.webp", reading_time: "7 min" },
+    seo: { title: "The complete Markdown field guide", description: "See headings, lists, blockquotes, links, inline code, and highlighted code blocks rendered by Field Notes.", schema_type: "Article" },
+  },
+  {
     content_type_key: "page",
     title: "About",
     slug: "about",
@@ -268,11 +341,22 @@ for (const [name, slug, description] of termSpecs) {
   topicTerms.push(term);
 }
 
+const tagTaxonomy = taxonomies.items.find((item) => item.taxonomy_key === "tag");
+const tagTerms = [];
+if (tagTaxonomy) {
+  const existingTags = (await request(`/v1/taxonomies/${tagTaxonomy.id}/terms`)).items;
+  for (const [name, slug, description] of [["AI", "ai", "Artificial intelligence"], ["Determinism", "determinism", "Deterministic systems and workflows"]]) {
+    let term = existingTags.find((item) => item.slug === slug);
+    if (!term) term = await request(`/v1/taxonomies/${tagTaxonomy.id}/terms`, { method: "POST", headers: { "Idempotency-Key": `field-notes-tag-${slug}-v1` }, body: JSON.stringify({ name, slug, description }) });
+    tagTerms.push(term);
+  }
+}
+
 for (const entry of savedEntries.filter((item) => item.content_type_key === "article")) {
   const term = entry.slug === "clarity-context-and-control" ? topicTerms[1] : topicTerms[0];
   await request(`/v1/entries/${entry.id}/terms`, {
     method: "POST",
-    body: JSON.stringify({ term_ids: [term.id] }),
+    body: JSON.stringify({ term_ids: entry.slug === "markdown-field-guide" ? [term.id, ...tagTerms.map((tag) => tag.id)] : [term.id] }),
   });
 }
 

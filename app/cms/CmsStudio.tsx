@@ -58,7 +58,8 @@ type StudioUser = { id: string; name: string; email: string; username: string; f
 type StudioAuthor = Pick<StudioUser, "id" | "name" | "role">;
 type StudioRole = { id: number; role_key: string; name: string; permissions_json: string; is_system: number };
 type RegistrationSettings = { mode: "open" | "approval" | "closed"; default_role: string };
-type StudioData = { entries: Entry[]; contentTypes: ContentType[]; taxonomies: Taxonomy[]; media: Media[]; currentUser: StudioUser; authors: StudioAuthor[]; users: StudioUser[]; roles: StudioRole[]; registration: RegistrationSettings | null };
+type SocialSharingSettings = { networks: string[]; content_types: string[] };
+type StudioData = { entries: Entry[]; contentTypes: ContentType[]; taxonomies: Taxonomy[]; media: Media[]; currentUser: StudioUser; authors: StudioAuthor[]; users: StudioUser[]; roles: StudioRole[]; registration: RegistrationSettings | null; socialSharing: SocialSharingSettings | null };
 type FormState = {
   id: number;
   contentType: string;
@@ -247,12 +248,15 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
   const [form, setForm] = useState<FormState>(emptyForm());
   const [search, setSearch] = useState("");
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
-  const [notice, setNotice] = useState("Connecting to Kujo CMS…");
+  const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [newTerms, setNewTerms] = useState<Record<number, string>>({});
   const [newTaxonomy, setNewTaxonomy] = useState({ label: "", key: "", description: "", hierarchical: false });
   const [userSearch, setUserSearch] = useState("");
+  const [contentModelFilter, setContentModelFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [termFilter, setTermFilter] = useState("all");
   const [userForm, setUserForm] = useState({ id: 0, display_name: "", username: "", email: "", first_name: "", last_name: "", bio: "", website_url: "", avatar_url: "", x: "", linkedin: "", github: "", role_key: "subscriber", status: "active", password: "" });
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -260,7 +264,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
     try {
       const data = await request<StudioData>();
       setStudio(data);
-      setNotice("All changes save to the live CMS API.");
+      setNotice("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "CMS unavailable");
     }
@@ -271,7 +275,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
     void request<StudioData>().then((data) => {
       if (!active) return;
       setStudio(data);
-      setNotice("All changes save to the live CMS API.");
+      setNotice("");
       if (view === "new") setForm({ ...emptyForm(data.contentTypes[0]?.type_key ?? "article"), author: data.currentUser.id });
       if (view === "edit") {
         const selected = data.entries.find((entry) => entry.id === entryId);
@@ -292,8 +296,12 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
 
   const filteredEntries = useMemo(() => (studio?.entries ?? []).filter((entry) => {
     const query = search.trim().toLowerCase();
-    return !query || entry.title.toLowerCase().includes(query) || entry.slug.includes(query);
-  }), [search, studio]);
+    const matchesSearch = !query || entry.title.toLowerCase().includes(query) || entry.slug.includes(query);
+    const matchesModel = contentModelFilter === "all" || entry.content_type_key === contentModelFilter;
+    const matchesStatus = statusFilter === "all" || entry.status === statusFilter;
+    const matchesTerm = termFilter === "all" || entry.terms?.some((term) => String(term.id) === termFilter);
+    return matchesSearch && matchesModel && matchesStatus && matchesTerm;
+  }), [contentModelFilter, search, statusFilter, studio, termFilter]);
   const filteredUsers = useMemo(() => (studio?.users ?? []).filter((user) => {
     const query = userSearch.trim().toLowerCase();
     return !query || user.name.toLowerCase().includes(query) || user.email.includes(query) || user.username.includes(query);
@@ -400,17 +408,17 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
   };
 
   const createTerm = async (taxonomy: Taxonomy) => {
-    const name = (newTerms[taxonomy.id] ?? "").trim();
-    if (name.length < 2) return;
+    const names = (newTerms[taxonomy.id] ?? "").split(",").map((name) => name.trim()).filter((name) => name.length >= 2);
+    if (names.length === 0) return;
     try {
       const result = await request<{ studio: StudioData }>({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "createTerm", taxonomy_id: taxonomy.id, name, slug: slugify(name) }),
+        body: JSON.stringify({ action: "createTerms", taxonomy_id: taxonomy.id, names }),
       });
       setStudio(result.studio);
       setNewTerms((current) => ({ ...current, [taxonomy.id]: "" }));
-      setNotice(`Added ${name} to ${taxonomy.label}.`);
+      setNotice(`Added ${names.length} ${names.length === 1 ? "term" : "terms"} to ${taxonomy.label}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not add term");
     }
@@ -458,6 +466,14 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
     } catch (error) { setNotice(error instanceof Error ? error.message : "Registration policy could not be saved."); } finally { setSaving(false); }
   };
 
+  const saveSocialSharing = async (settings: SocialSharingSettings) => {
+    setSaving(true); setNotice("Updating social sharing options…");
+    try {
+      const result = await request<{ studio: StudioData }>({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "updateSocialSharing", ...settings }) });
+      setStudio(result.studio); setNotice("Social sharing options saved.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Sharing options could not be saved."); } finally { setSaving(false); }
+  };
+
   const logout = async () => {
     await fetch("/api/cms/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
     window.location.assign("/cms/login");
@@ -478,12 +494,13 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
       <div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1></div>
       {action && can("edit_content") && <a className="button studio-action" href="/cms/content/new"><IconButtonLabel icon={IconPlus}>New content</IconButtonLabel></a>}
     </header>
-    <p className="studio-notice" aria-live="polite">{notice}</p>
+    {notice && <p className="studio-notice" aria-live="polite">{notice}</p>}
   </>;
 
   const contentList = (compact = false) => <div className={`content-list-panel ${compact ? "compact" : ""}`}>
     {!compact && <div className="content-list-tools">
       <label className="studio-search"><span>Search content</span><div className="search-control"><IconSearch size={18} aria-hidden="true" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or slug" /></div></label>
+      <div className="content-filters"><div><span>Model</span><ThemeSelect ariaLabel="Filter by content model" value={contentModelFilter} onChange={setContentModelFilter} options={[{ value: "all", label: "All models" }, ...(studio?.contentTypes ?? []).map((type) => ({ value: type.type_key, label: type.label }))]} /></div><div><span>Status</span><ThemeSelect ariaLabel="Filter by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All statuses" }, ...["draft", "published", "scheduled", "archived"].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }))]} /></div><div><span>Taxonomy</span><ThemeSelect ariaLabel="Filter by taxonomy term" value={termFilter} onChange={setTermFilter} options={[{ value: "all", label: "All terms" }, ...(studio?.taxonomies.flatMap((taxonomy) => taxonomy.terms.map((term) => ({ value: String(term.id), label: `${taxonomy.label}: ${term.name}` }))) ?? [])]} /></div></div>
       <span>{filteredEntries.length} items</span>
     </div>}
     <div className="content-table" role="table" aria-label="Content">
@@ -498,8 +515,19 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
     </div>
   </div>;
 
+  const seoFields = <section className="entry-seo-panel"><div className="panel-heading"><div><p className="eyebrow">SEO & sharing</p><h2>Search presentation</h2></div><span>{form.seoTitle.length}/60 title · {form.seoDescription.length}/160 description</span></div><div className="entry-seo-fields">
+    <label><span>SEO title</span><input value={form.seoTitle} maxLength={70} onChange={(event) => update("seoTitle", event.target.value)} placeholder={form.title || "Search title"} /></label>
+    <label><span>Meta description</span><textarea value={form.seoDescription} maxLength={180} onChange={(event) => update("seoDescription", event.target.value)} placeholder={form.excerpt || "Search description"} /></label>
+    <label><span>Canonical URL</span><input type="url" value={form.canonicalUrl} onChange={(event) => update("canonicalUrl", event.target.value)} placeholder="https://example.com/…" /></label>
+    <div className="select-field"><span>Schema type</span><ThemeSelect ariaLabel="Schema type" value={form.schemaType} onChange={(value) => update("schemaType", value)} options={["Article", "BlogPosting", "WebPage", "AboutPage"].map((value) => ({ value, label: value }))} /></div>
+    <label className="wide"><span>Custom metadata JSON</span><textarea className="metadata-editor" value={form.customMeta} onChange={(event) => update("customMeta", event.target.value)} spellCheck="false" /></label>
+    <label className="upload-label wide"><span><IconUpload size={16} /> Social sharing image</span><input className="file-input" type="file" accept="image/*" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /></label>
+    {form.ogImage && <div className="social-preview wide"><img src={form.ogImage} alt="Current social sharing preview" /><button type="button" aria-label="Remove social image" onClick={() => { update("ogImage", ""); update("coverImage", ""); }}><IconTrash size={15} /></button></div>}
+    {studio && studio.media.length > 0 && <div className="select-field wide"><span><IconPhoto size={16} /> Choose from media</span><ThemeSelect ariaLabel="Choose from media" value={form.ogImage} onChange={(value) => { update("ogImage", value); update("coverImage", value); }} options={[{ value: "", label: "Choose an image" }, ...studio.media.map((item) => ({ value: item.storage_path, label: item.filename }))]} /></div>}
+  </div></section>;
+
   const editor = <div className="editor-layout">
-    <section className="studio-editor">
+    <div className="editor-main-column"><section className="studio-editor">
       <div className="studio-document-head">
         <label className="studio-title-field"><span>Title</span><input value={form.title} onChange={(event) => update("title", event.target.value)} onBlur={() => { if (!form.slug) update("slug", slugify(form.title)); }} placeholder="A clear, useful title" /></label>
         <label><span>Slug</span><div className="slug-field"><span>/</span><input value={form.slug} onChange={(event) => update("slug", slugify(event.target.value))} placeholder="entry-slug" /></div></label>
@@ -520,7 +548,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
         </div>
         <textarea ref={bodyRef} className="markdown-editor" value={form.body} onChange={(event) => update("body", event.target.value)} spellCheck="true" aria-label="Markdown content" />
       </> : <MarkdownPreview markdown={form.body} />}
-    </section>
+    </section>{seoFields}</div>
     <aside className="studio-settings">
       <section>
         <p className="eyebrow">Publishing</p>
@@ -536,18 +564,6 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
       <section>
         <p className="eyebrow">Taxonomies</p>
         {studio?.taxonomies.map((taxonomy) => <fieldset className="taxonomy-group" key={taxonomy.id}><legend>{taxonomy.label}</legend><div className="term-options">{taxonomy.terms.map((term) => <label className="check-label" key={term.id}><input type="checkbox" checked={form.termIds.includes(term.id)} onChange={(event) => update("termIds", event.target.checked ? [...form.termIds, term.id] : form.termIds.filter((id) => id !== term.id))} /><span>{term.name}</span></label>)}</div></fieldset>)}
-      </section>
-      <section>
-        <p className="eyebrow">SEO & sharing</p>
-        <label><span>SEO title <small>{form.seoTitle.length}/60</small></span><input value={form.seoTitle} maxLength={70} onChange={(event) => update("seoTitle", event.target.value)} placeholder={form.title || "Search title"} /></label>
-        <label><span>Meta description <small>{form.seoDescription.length}/160</small></span><textarea value={form.seoDescription} maxLength={180} onChange={(event) => update("seoDescription", event.target.value)} placeholder={form.excerpt || "Search description"} /></label>
-        <label><span>Canonical URL</span><input type="url" value={form.canonicalUrl} onChange={(event) => update("canonicalUrl", event.target.value)} placeholder="https://example.com/…" /></label>
-        <label htmlFor="schema-type"><span>Schema type</span><ThemeSelect id="schema-type" ariaLabel="Schema type" value={form.schemaType} onChange={(value) => update("schemaType", value)} options={["Article", "BlogPosting", "WebPage", "AboutPage"].map((value) => ({ value, label: value }))} /></label>
-        <label><span>Custom metadata JSON</span><textarea className="metadata-editor" value={form.customMeta} onChange={(event) => update("customMeta", event.target.value)} spellCheck="false" /></label>
-        <label className="upload-label"><span><IconUpload size={16} /> Social sharing image</span><input className="file-input" type="file" accept="image/*" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} /></label>
-        <small className="field-help">Uploads are resized and converted to WebP automatically.</small>
-        {form.ogImage && <div className="social-preview"><img src={form.ogImage} alt="Current social sharing preview" /><button type="button" aria-label="Remove social image" onClick={() => { update("ogImage", ""); update("coverImage", ""); }}><IconTrash size={15} /></button></div>}
-        {studio && studio.media.length > 0 && <div className="select-field"><span><IconPhoto size={16} /> Choose from media</span><ThemeSelect ariaLabel="Choose from media" value={form.ogImage} onChange={(value) => { update("ogImage", value); update("coverImage", value); }} options={[{ value: "", label: "Choose an image" }, ...studio.media.map((item) => ({ value: item.storage_path, label: item.filename }))]} /></div>}
       </section>
       <button className="button studio-save" type="button" disabled={saving || uploading} onClick={() => void saveEntry()}><IconButtonLabel icon={IconDeviceFloppy}>{saving ? "Saving…" : form.id ? "Save changes" : "Create content"}</IconButtonLabel></button>
     </aside>
@@ -568,9 +584,8 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
         <nav aria-label="CMS navigation">
           {navItems.filter((item) => item.view !== "users" || can("manage_users")).map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <a className={active ? "active" : ""} href={item.href} key={item.href}><Icon size={19} stroke={1.7} aria-hidden="true" /><span>{item.label}</span></a>; })}
         </nav>
-        {studio?.currentUser && <div className="studio-account"><span className="account-avatar"><IconUser size={18} /></span><span><b>{studio.currentUser.name}</b><small>{studio.currentUser.role}</small></span><button type="button" onClick={() => void logout()} aria-label="Sign out"><IconLogout size={17} /></button></div>}
-        <div className="studio-api-status"><span className="status-dot" /> Authenticated CMS API</div>
         <a className="view-site-link" href="/"><IconExternalLink size={17} aria-hidden="true" /><span>View publication</span></a>
+        {studio?.currentUser && <div className="studio-account"><span className="account-avatar"><IconUser size={18} /></span><span><b>{studio.currentUser.name}</b><small>{studio.currentUser.role}</small></span><button type="button" onClick={() => void logout()} aria-label="Sign out"><IconLogout size={17} /></button></div>}
       </aside>
 
       <section className="studio-workspace">
@@ -579,11 +594,11 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
           <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">Recently updated</p><h2>Content</h2></div><a href="/cms/content">View all <IconChevronRight size={17} /></a></div>{contentList(true)}</section>
         </div></>}
         {view === "content" && <>{header("Manage the publication", "Content")} {contentList()}</>}
-        {(view === "new" || view === "edit") && <>{header(view === "new" ? "Create content" : "Edit content", view === "new" ? "New content" : form.title || "Loading…", false)}<div className="editor-breadcrumb"><a href="/cms/content">Content</a><IconChevronRight size={15} /><span>{view === "new" ? "New" : form.title || "Loading"}</span></div>{editor}</>}
+        {(view === "new" || view === "edit") && <>{header("Content", view === "new" ? "New content" : "Edit content", false)}<div className="editor-breadcrumb"><a href="/cms/content">Content</a><IconChevronRight size={15} /><span>{view === "new" ? "New" : form.title || "Loading"}</span></div>{editor}</>}
         {view === "taxonomies" && <>{header("Organize the publication", "Taxonomies", false)}
           {can("manage_taxonomies") && <section className="create-taxonomy-panel"><div><p className="eyebrow">Custom structure</p><h2>Create a taxonomy</h2><p>Add a reusable classification such as Region, Audience, Format, or Product.</p></div><div className="taxonomy-form"><label><span>Name</span><input value={newTaxonomy.label} onChange={(event) => setNewTaxonomy((current) => ({ ...current, label: event.target.value, key: current.key || slugify(event.target.value).replace(/-/g, "_") }))} placeholder="Audience" /></label><label><span>API key</span><input value={newTaxonomy.key} onChange={(event) => setNewTaxonomy((current) => ({ ...current, key: slugify(event.target.value).replace(/-/g, "_") }))} placeholder="audience" /></label><label className="wide"><span>Description</span><input value={newTaxonomy.description} onChange={(event) => setNewTaxonomy((current) => ({ ...current, description: event.target.value }))} placeholder="Who this content is intended for" /></label><label className="hierarchy-toggle"><input type="checkbox" checked={newTaxonomy.hierarchical} onChange={(event) => setNewTaxonomy((current) => ({ ...current, hierarchical: event.target.checked }))} /><span>Allow parent and child terms</span></label><button className="button" type="button" onClick={() => void createTaxonomy()}><IconPlus size={18} /><span>Create taxonomy</span></button></div></section>}
-          <div className="taxonomy-admin-grid">{studio?.taxonomies.map((taxonomy) => <section className="taxonomy-admin-card" key={taxonomy.id}><div className="panel-heading"><div><p className="eyebrow">{taxonomy.taxonomy_key}</p><h2>{taxonomy.label}</h2></div><span>{taxonomy.terms.length} terms</span></div><p>{taxonomy.description || `Manage the terms available under ${taxonomy.label}.`}</p><div className="taxonomy-term-list">{taxonomy.terms.map((term) => <span key={term.id}>{term.name}<small>/{term.slug}</small></span>)}</div>{can("manage_taxonomies") && <div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder={`New ${taxonomy.label.toLowerCase()}`} /><button type="button" onClick={() => void createTerm(taxonomy)} aria-label={`Add ${taxonomy.label} term`}><IconPlus size={18} /><span>Add term</span></button></div>}</section>)}</div></>}
-        {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<div className="seo-admin-panel"><div className="panel-heading"><div><p className="eyebrow">Content metadata</p><h2>Search readiness</h2></div><span>{seoReadyCount} of {studio?.entries.length ?? 0} ready</span></div><div className="seo-list">{studio?.entries.map((entry) => { const formEntry = formFromEntry(entry); const ready = Boolean(formEntry.seoTitle && formEntry.seoDescription); return <a href={`/cms/content/${entry.id}`} key={entry.id}><span><b>{entry.title}</b><small>{formEntry.seoTitle || "SEO title needed"}</small></span><i className={`status-badge ${ready ? "published" : "draft"}`}>{ready ? "Ready" : "Needs work"}</i><IconEdit size={18} /></a>; })}</div></div></>}
+          <div className="taxonomy-admin-grid">{studio?.taxonomies.map((taxonomy) => <section className="taxonomy-admin-card" key={taxonomy.id}><div className="panel-heading"><div><h2>{taxonomy.label}</h2></div><span>{taxonomy.terms.length} terms</span></div><p>{taxonomy.description || `Manage the terms available under ${taxonomy.label}.`}</p><div className="taxonomy-term-list">{taxonomy.terms.map((term) => <span key={term.id}>{term.name}<small>/{term.slug}</small></span>)}</div>{can("manage_taxonomies") && <div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder="Add terms separated by commas" /><button type="button" onClick={() => void createTerm(taxonomy)} aria-label={`Add ${taxonomy.label} terms`} title="Add terms"><IconPlus size={18} /></button></div>}</section>)}</div></>}
+        {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<div className="seo-overview"><article><span>SEO ready</span><b>{seoReadyCount}</b><i style={{ width: `${studio?.entries.length ? (seoReadyCount / studio.entries.length) * 100 : 0}%` }} /></article><article><span>Missing titles</span><b>{studio?.entries.filter((entry) => !formFromEntry(entry).seoTitle).length ?? 0}</b><i style={{ width: `${studio?.entries.length ? (studio.entries.filter((entry) => !formFromEntry(entry).seoTitle).length / studio.entries.length) * 100 : 0}%` }} /></article><article><span>Missing descriptions</span><b>{studio?.entries.filter((entry) => !formFromEntry(entry).seoDescription).length ?? 0}</b><i style={{ width: `${studio?.entries.length ? (studio.entries.filter((entry) => !formFromEntry(entry).seoDescription).length / studio.entries.length) * 100 : 0}%` }} /></article></div><section className="sharing-settings"><div><p className="eyebrow">Frontend sharing</p><h2>Social networks and content types</h2><p>Choose which sharing actions the publication renders and where they appear.</p></div><div><fieldset><legend>Networks</legend>{[{ value: "x", label: "X" }, { value: "linkedin", label: "LinkedIn" }, { value: "facebook", label: "Facebook" }, { value: "email", label: "Email" }].map((network) => <label className="setting-check" key={network.value}><input type="checkbox" checked={studio?.socialSharing?.networks.includes(network.value) ?? false} onChange={(event) => { const current = studio?.socialSharing ?? { networks: [], content_types: ["article"] }; void saveSocialSharing({ ...current, networks: event.target.checked ? [...current.networks, network.value] : current.networks.filter((value) => value !== network.value) }); }} /><span>{network.label}</span></label>)}</fieldset><fieldset><legend>Content types</legend>{studio?.contentTypes.map((type) => <label className="setting-check" key={type.type_key}><input type="checkbox" checked={studio.socialSharing?.content_types.includes(type.type_key) ?? false} onChange={(event) => { const current = studio.socialSharing ?? { networks: ["x", "linkedin", "facebook", "email"], content_types: [] }; void saveSocialSharing({ ...current, content_types: event.target.checked ? [...current.content_types, type.type_key] : current.content_types.filter((value) => value !== type.type_key) }); }} /><span>{type.label}</span></label>)}</fieldset></div></section><div className="seo-admin-panel"><div className="panel-heading"><div><p className="eyebrow">Content metadata</p><h2>Search readiness</h2></div><span>{seoReadyCount} of {studio?.entries.length ?? 0} ready</span></div><div className="seo-list">{studio?.entries.map((entry) => { const formEntry = formFromEntry(entry); const ready = Boolean(formEntry.seoTitle && formEntry.seoDescription); return <a href={`/cms/content/${entry.id}`} key={entry.id}><span><b>{entry.title}</b><small>{formEntry.seoTitle || "SEO title needed"}</small></span><i className={`status-badge ${ready ? "published" : "draft"}`}>{ready ? "Ready" : "Needs work"}</i><IconEdit size={18} /></a>; })}</div></div></>}
         {view === "users" && <>{header("People, roles, and access", "Users", false)}
           <div className="users-toolbar"><label className="studio-search"><span>Search users</span><div className="search-control"><IconSearch size={18} /><input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Name, email, or username" /></div></label><a className="button" href="/cms/users/new"><IconUserPlus size={18} /> Add user</a></div>
           <section className="registration-panel"><div className="panel-heading"><div><p className="eyebrow">Registration</p><h2>New account policy</h2></div><IconSettings size={22} /></div><p>Choose whether public signups are active immediately, wait for approval, or are disabled.</p><div className="registration-modes">{([{ value: "open", label: "Open", description: "Signups become active immediately." }, { value: "approval", label: "Require approval", description: "Signups remain pending until reviewed." }, { value: "closed", label: "Closed", description: "Only administrators can create users." }] as const).map((mode) => <button type="button" className={studio?.registration?.mode === mode.value ? "active" : ""} key={mode.value} onClick={() => void saveRegistration(mode.value, studio?.registration?.default_role ?? "subscriber")}><IconShieldCheck size={19} /><span><b>{mode.label}</b><small>{mode.description}</small></span>{studio?.registration?.mode === mode.value && <IconCheck size={18} />}</button>)}</div><div className="registration-default"><span>Default signup role</span><ThemeSelect ariaLabel="Default signup role" value={studio?.registration?.default_role ?? "subscriber"} onChange={(value) => void saveRegistration(studio?.registration?.mode ?? "approval", value)} options={(studio?.roles ?? []).filter((role) => role.role_key !== "super_admin").map((role) => ({ value: role.role_key, label: role.name }))} /></div></section>

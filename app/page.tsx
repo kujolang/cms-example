@@ -3,9 +3,10 @@ import {
   formatCmsDate,
   getArticles,
   getEntryMeta,
-  getPages,
   type CmsEntry,
 } from "../lib/cms";
+import SiteFooter from "./SiteFooter";
+import SiteHeader from "./SiteHeader";
 
 const principles = [
   ["Clarity", "A public content API with predictable, inspectable responses."],
@@ -15,41 +16,27 @@ const principles = [
 
 export default async function Home() {
   let articles: CmsEntry[] = [];
-  let pages: CmsEntry[] = [];
   let cmsOnline = true;
 
   try {
-    [articles, pages] = await Promise.all([
-      getArticles().then((result) => result.items),
-      getPages().then((result) => result.items),
-    ]);
+    articles = await getArticles().then((result) => result.items);
   } catch {
     cmsOnline = false;
   }
 
   return (
     <main>
-      <header className="site-header">
-        <a className="wordmark" href="/">KUJO / FIELD NOTES</a>
-        <nav aria-label="Primary navigation">
-          <a href="#articles">Articles</a>
-          {pages.map((page) => <a href={`/pages/${page.slug}`} key={page.id}>{page.title}</a>)}
-          <a className="button button-small" href="/cms">CMS console</a>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <section className="hero">
         <div className="hero-content">
-          <p className="eyebrow">
-            <span className={`status-dot ${cmsOnline ? "" : "status-dot-offline"}`} />
-            {cmsOnline ? "Live content from Kujo CMS" : "CMS connection unavailable"}
-          </p>
+          <p className="eyebrow">{cmsOnline ? "Live content from Kujo CMS" : "CMS connection unavailable"}</p>
           <h1>Ideas with enough room to become useful.</h1>
           <p className="hero-copy">
             Field Notes is an independent publication about building software with
             clarity, context, and control.
           </p>
-          <a className="button" href="#articles">Read the latest</a>
+          <a className="button" href="/articles">Read the latest</a>
         </div>
         <div className="hero-visual" aria-label="Abstract green, lime, and lavender studio composition">
           <span className="hero-orbit hero-orbit-large" />
@@ -109,10 +96,7 @@ export default async function Home() {
         )}
       </section>
 
-      <footer>
-        <p>Content by Kujo CMS. Frontend by whatever you choose.</p>
-        <a href="/cms">Inspect the backend →</a>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

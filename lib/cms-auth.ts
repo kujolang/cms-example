@@ -1,3 +1,17 @@
+import {
+  createCmsUser,
+  derivePassword,
+  ensureLocalDemoUsers,
+  findCmsUserByEmail,
+  getCmsUser,
+  getCmsUserCredential,
+  getRegistrationSettings,
+  listCmsUsers,
+  updateCmsUser,
+  verifyPassword,
+  type CmsUserRecord,
+} from "./cms-user-store";
+
 export type CmsCapability =
   | "view_content"
   | "edit_content"
@@ -7,62 +21,84 @@ export type CmsCapability =
   | "upload_media"
   | "manage_users";
 
+export type StudioRole = "Administrator" | "Editor" | "Author" | "Viewer" | "Subscriber";
+
 export type StudioUser = {
   id: string;
   name: string;
   email: string;
-  role: "Administrator" | "Editor" | "Viewer";
+  username: string;
+  firstName: string;
+  lastName: string;
+  bio: string;
+  websiteUrl: string;
+  avatarUrl: string;
+  social: Record<string, string>;
+  role: StudioRole;
+  roleKey: string;
+  status: CmsUserRecord["status"];
   capabilities: CmsCapability[];
-  source: "local" | "platform";
+  source: "cms" | "platform";
+  createdAt: string;
+  lastLoginAt: string | null;
 };
 
-type ConfiguredUser = StudioUser & { password?: string; active?: boolean };
 type SessionPayload = { sub: string; exp: number };
-
 export const CMS_SESSION_COOKIE = "kujo_cms_session";
 
-const ROLE_CAPABILITIES: Record<StudioUser["role"], CmsCapability[]> = {
+const ROLE_CAPABILITIES: Record<StudioRole, CmsCapability[]> = {
   Administrator: ["view_content", "edit_content", "publish_content", "manage_taxonomies", "manage_seo", "upload_media", "manage_users"],
   Editor: ["view_content", "edit_content", "publish_content", "manage_seo", "upload_media"],
+  Author: ["view_content", "edit_content", "publish_content", "upload_media"],
   Viewer: ["view_content"],
+  Subscriber: [],
 };
 
-const LOCAL_DEMO_USERS: ConfiguredUser[] = [
-  { id: "editorial-team", name: "Editorial Team", email: "admin@fieldnotes.local", role: "Administrator", capabilities: ROLE_CAPABILITIES.Administrator, source: "local", password: "fieldnotes-demo", active: true },
-  { id: "maya-chen", name: "Maya Chen", email: "editor@fieldnotes.local", role: "Editor", capabilities: ROLE_CAPABILITIES.Editor, source: "local", password: "editor-demo", active: true },
-];
+const ROLE_NAMES: Record<string, StudioRole> = {
+  super_admin: "Administrator",
+  administrator: "Administrator",
+  editor: "Editor",
+  author: "Author",
+  viewer: "Viewer",
+  subscriber: "Subscriber",
+};
 
 function isLoopback(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
-function configuredUsers(request: Request): ConfiguredUser[] {
-  const raw = process.env.CMS_STUDIO_USERS_JSON;
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as Array<Partial<ConfiguredUser>>;
-      return parsed.filter((user) => user.id && user.email && user.name).map((user) => {
-        const role = user.role && ROLE_CAPABILITIES[user.role] ? user.role : "Viewer";
-        return {
-          id: String(user.id),
-          name: String(user.name),
-          email: String(user.email).toLowerCase(),
-          role,
-          capabilities: Array.isArray(user.capabilities) ? user.capabilities.filter((capability): capability is CmsCapability => ROLE_CAPABILITIES.Administrator.includes(capability as CmsCapability)) : ROLE_CAPABILITIES[role],
-          source: "local",
-          password: user.password ? String(user.password) : undefined,
-          active: user.active !== false,
-        };
-      });
-    } catch {
-      return [];
-    }
+function safeSocial(value: string) {
+  try {
+    const parsed = JSON.parse(value || "{}") as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
+      : {};
+  } catch {
+    return {};
   }
-  return isLoopback(new URL(request.url).hostname) ? LOCAL_DEMO_USERS : [];
 }
 
-function publicUser(user: ConfiguredUser): StudioUser {
-  return { id: user.id, name: user.name, email: user.email, role: user.role, capabilities: user.capabilities, source: user.source };
+export function studioUserFromRecord(record: CmsUserRecord, source: StudioUser["source"] = "cms"): StudioUser {
+  const role = ROLE_NAMES[record.role_key] ?? "Subscriber";
+  return {
+    id: String(record.id),
+    name: record.display_name,
+    email: record.email,
+    username: record.username,
+    firstName: record.first_name,
+    lastName: record.last_name,
+    bio: record.bio,
+    websiteUrl: record.website_url,
+    avatarUrl: record.avatar_url,
+    social: safeSocial(record.social_json),
+    role,
+    roleKey: record.role_key,
+    status: record.status,
+    capabilities: ROLE_CAPABILITIES[role],
+    source,
+    createdAt: record.created_at,
+    lastLoginAt: record.last_login_at,
+  };
 }
 
 function base64UrlEncode(bytes: Uint8Array) {
@@ -116,43 +152,55 @@ async function sessionUser(request: Request): Promise<StudioUser | null> {
   try {
     const parsed = JSON.parse(new TextDecoder().decode(base64UrlDecode(payload))) as SessionPayload;
     if (!parsed.sub || parsed.exp <= Date.now()) return null;
-    const user = configuredUsers(request).find((candidate) => candidate.id === parsed.sub && candidate.active !== false);
-    return user ? publicUser(user) : null;
+    const record = await getCmsUser(Number(parsed.sub));
+    return record.status === "active" ? studioUserFromRecord(record) : null;
   } catch {
     return null;
   }
 }
 
-function platformUser(request: Request): StudioUser | null {
+async function platformUser(request: Request): Promise<StudioUser | null> {
   const id = request.headers.get("oai-authenticated-user-id");
-  const email = request.headers.get("oai-authenticated-user-email");
+  const email = request.headers.get("oai-authenticated-user-email")?.toLowerCase();
   if (!id || !email) return null;
-  const configured = configuredUsers(request).find((candidate) => candidate.id === id || candidate.email === email.toLowerCase());
-  const role = configured?.role ?? (process.env.CMS_STUDIO_PLATFORM_DEFAULT_ROLE === "Editor" ? "Editor" : "Viewer");
-  const encodedName = request.headers.get("oai-authenticated-user-full-name");
-  const name = configured?.name ?? (encodedName && request.headers.get("oai-authenticated-user-full-name-encoding") === "percent-encoded-utf-8" ? decodeURIComponent(encodedName) : email);
-  return { id, email, name, role, capabilities: configured?.capabilities ?? ROLE_CAPABILITIES[role], source: "platform" };
+  let record = await findCmsUserByEmail(email);
+  if (!record) {
+    const settings = await getRegistrationSettings();
+    const encodedName = request.headers.get("oai-authenticated-user-full-name");
+    let displayName = email.split("@")[0];
+    if (encodedName && request.headers.get("oai-authenticated-user-full-name-encoding") === "percent-encoded-utf-8") {
+      try { displayName = decodeURIComponent(encodedName); } catch { /* use email fallback */ }
+    }
+    const username = `platform-${id.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48)}`;
+    const credential = await derivePassword(crypto.randomUUID());
+    record = await createCmsUser({ user_key: username, username, email, display_name: displayName, role_key: settings.default_role, status: "active", approved_by: "platform-identity", ...credential, social: {} });
+  }
+  return record.status === "active" ? studioUserFromRecord(record, "platform") : null;
 }
 
 export async function authenticateStudioRequest(request: Request) {
-  return platformUser(request) ?? await sessionUser(request);
+  return await platformUser(request) ?? await sessionUser(request);
 }
 
-export function studioUsersFor(request: Request, currentUser?: StudioUser | null) {
-  const users = configuredUsers(request).filter((user) => user.active !== false).map(publicUser);
+export async function studioUsersFor(request: Request, currentUser?: StudioUser | null) {
+  await ensureLocalDemoUsers(request);
+  const users = (await listCmsUsers()).map((user) => studioUserFromRecord(user));
   if (currentUser && !users.some((user) => user.id === currentUser.id)) users.push(currentUser);
   return users;
 }
 
 export async function authenticateLocalCredentials(request: Request, email: string, password: string) {
-  if (!isLoopback(new URL(request.url).hostname)) return null;
-  const user = configuredUsers(request).find((candidate) => candidate.active !== false && candidate.email === email.toLowerCase());
-  if (!user?.password) return null;
-  const [candidateHash, expectedHash] = await Promise.all([
-    crypto.subtle.digest("SHA-256", new TextEncoder().encode(password)),
-    crypto.subtle.digest("SHA-256", new TextEncoder().encode(user.password)),
-  ]);
-  return signaturesMatch(base64UrlEncode(new Uint8Array(candidateHash)), base64UrlEncode(new Uint8Array(expectedHash))) ? publicUser(user) : null;
+  if (!isLoopback(new URL(request.url).hostname) && !process.env.CMS_STUDIO_ALLOW_PASSWORD_LOGIN) return { user: null, error: "Password login is not enabled for this site." };
+  await ensureLocalDemoUsers(request);
+  const record = await findCmsUserByEmail(email);
+  if (!record) return { user: null, error: "The email or password is incorrect." };
+  if (record.status === "pending") return { user: null, error: "Your account is waiting for approval." };
+  if (record.status === "rejected") return { user: null, error: "This account registration was not approved." };
+  if (record.status === "suspended") return { user: null, error: "This account is suspended." };
+  const credential = await getCmsUserCredential(record.id);
+  if (!(await verifyPassword(password, credential))) return { user: null, error: "The email or password is incorrect." };
+  const updated = await updateCmsUser(record.id, { last_login_at: new Date().toISOString() });
+  return { user: studioUserFromRecord(updated), error: "" };
 }
 
 export function hasCapability(user: StudioUser, capability: CmsCapability) {

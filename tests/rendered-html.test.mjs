@@ -88,9 +88,11 @@ test("server-renders separate CMS administration routes", async () => {
     render("/cms/taxonomies", { headers: { cookie } }),
     render("/cms/seo", { headers: { cookie } }),
     render("/cms/users", { headers: { cookie } }),
+    render("/cms/users/new", { headers: { cookie } }),
+    render("/cms/users/1", { headers: { cookie } }),
   ]);
   responses.forEach((response) => assert.equal(response.status, 200));
-  const [content, create, edit, taxonomies, seo, users] = await Promise.all(responses.map((response) => response.text()));
+  const [content, create, edit, taxonomies, seo, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
   assert.match(content, /Search by title or slug/);
   assert.doesNotMatch(content, /Markdown content/);
   assert.match(create, /Create content/);
@@ -98,7 +100,32 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(taxonomies, /Organize the publication/);
   assert.match(seo, /Search and social presentation/);
   assert.match(users, /People, roles, and access/);
+  assert.match(users, /New account policy/);
+  assert.match(newUser, /Temporary password/);
+  assert.match(editUser, /Web presence/);
   assert.match(content, /tabler-icon/);
+});
+
+test("supports approval-based signup and self-service accounts", async () => {
+  const suffix = `${process.pid}-${Date.now()}`;
+  const signup = await render("/api/cms/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", origin: "http://localhost" },
+    body: JSON.stringify({ action: "signup", display_name: "Test Subscriber", username: `test-${suffix}`, email: `test-${suffix}@example.com`, password: "subscriber-test-password" }),
+  });
+  assert.equal(signup.status, 201);
+  const signupPayload = await signup.json();
+  assert.equal(signupPayload.data.pending, true);
+  const signupPage = await render("/signup");
+  assert.equal(signupPage.status, 200);
+  assert.match(await signupPage.text(), /Create your account/);
+
+  const adminCookie = await cmsSessionCookie();
+  const account = await render("/account", { headers: { cookie: adminCookie } });
+  assert.equal(account.status, 200);
+  const accountHtml = await account.text();
+  assert.match(accountHtml, /Personal details/);
+  assert.match(accountHtml, /Change password/);
 });
 
 test("protects CMS pages and API behind an authenticated session", async () => {
@@ -135,4 +162,7 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   assert.match(cmsRoute, /key !== "meta_json"/);
   assert.match(cmsRoute, /Cache-Control.*max-age=31536000, immutable/);
   assert.match(cmsRoute, /Sign in to access CMS Studio/);
+  const studio = await readFile(new URL("../app/cms/CmsStudio.tsx", import.meta.url), "utf8");
+  assert.match(studio, /theme-select-menu/);
+  assert.doesNotMatch(studio, /<select\b|StyledSelect/);
 });

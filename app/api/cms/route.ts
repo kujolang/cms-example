@@ -1,4 +1,5 @@
 import { authenticateStudioRequest, hasCapability, studioUsersFor, type CmsCapability, type StudioUser } from "../../../lib/cms-auth";
+import { createCmsUser, derivePassword, getRegistrationSettings, listCmsRoles, updateCmsUser, updateRegistrationSettings } from "../../../lib/cms-user-store";
 
 const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
 const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
@@ -43,15 +44,20 @@ async function loadStudio(request: Request, currentUser: StudioUser) {
     terms: (await cmsRequest<{ items: unknown[] }>(`/v1/taxonomies/${taxonomy.id}/terms?limit=200&sort_by=name&sort_dir=asc`)).items,
   })));
   const mediaItems = media.items.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "meta_json")));
-  const configuredUsers = studioUsersFor(request, currentUser);
+  const configuredUsers = await studioUsersFor(request, currentUser);
+  const [roles, registration] = hasCapability(currentUser, "manage_users")
+    ? await Promise.all([listCmsRoles(), getRegistrationSettings()])
+    : [[], null];
   return {
     entries: entries.items,
     contentTypes: contentTypes.items,
     taxonomies: taxonomyItems,
     media: mediaItems,
     currentUser,
-    authors: configuredUsers.map(({ id, name, role }) => ({ id, name, role })),
+    authors: configuredUsers.filter((user) => user.status === "active" && ["Administrator", "Editor", "Author"].includes(user.role)).map(({ id, name, role }) => ({ id, name, role })),
     users: hasCapability(currentUser, "manage_users") ? configuredUsers : [],
+    roles,
+    registration,
   };
 }
 
@@ -161,6 +167,62 @@ export async function POST(request: Request) {
         body: JSON.stringify({ name, slug, description: String(input.description ?? "") }),
       });
       return response({ term, studio: await loadStudio(request, user) }, 201);
+    }
+    if (input.action === "createUser") {
+      if (!hasCapability(user, "manage_users")) return denied("manage_users");
+      const email = String(input.email ?? "").trim().toLowerCase();
+      const username = String(input.username ?? "").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+      const password = String(input.password ?? "");
+      if (!/^\S+@\S+\.\S+$/.test(email) || username.length < 3 || password.length < 10) return response("A valid email, username, and 10+ character password are required.", 400);
+      const credential = await derivePassword(password);
+      const createdUser = await createCmsUser({
+        user_key: username,
+        username,
+        email,
+        display_name: String(input.display_name ?? "").trim(),
+        first_name: String(input.first_name ?? "").trim(),
+        last_name: String(input.last_name ?? "").trim(),
+        bio: String(input.bio ?? "").trim(),
+        website_url: String(input.website_url ?? "").trim(),
+        avatar_url: String(input.avatar_url ?? "").trim(),
+        social: typeof input.social === "object" && input.social ? input.social as Record<string, string> : {},
+        role_key: String(input.role_key ?? "subscriber"),
+        status: String(input.status ?? "active") as "pending" | "active" | "suspended" | "rejected",
+        approved_by: user.email,
+        ...credential,
+      });
+      return response({ user: createdUser, studio: await loadStudio(request, user) }, 201);
+    }
+    if (input.action === "updateUser") {
+      if (!hasCapability(user, "manage_users")) return denied("manage_users");
+      const id = Number(input.id);
+      if (!Number.isInteger(id) || id <= 0) return response("A valid user ID is required.", 400);
+      const changes: Record<string, unknown> = {
+        email: String(input.email ?? "").trim().toLowerCase(),
+        username: String(input.username ?? "").trim().toLowerCase(),
+        display_name: String(input.display_name ?? "").trim(),
+        first_name: String(input.first_name ?? "").trim(),
+        last_name: String(input.last_name ?? "").trim(),
+        bio: String(input.bio ?? "").trim(),
+        website_url: String(input.website_url ?? "").trim(),
+        avatar_url: String(input.avatar_url ?? "").trim(),
+        social: typeof input.social === "object" && input.social ? input.social : {},
+        role_key: String(input.role_key ?? "subscriber"),
+        status: String(input.status ?? "pending"),
+        approved_by: user.email,
+      };
+      const password = String(input.password ?? "");
+      if (password) {
+        if (password.length < 10) return response("New passwords must be at least 10 characters.", 400);
+        Object.assign(changes, await derivePassword(password));
+      }
+      const updatedUser = await updateCmsUser(id, changes);
+      return response({ user: updatedUser, studio: await loadStudio(request, user) });
+    }
+    if (input.action === "updateRegistration") {
+      if (!hasCapability(user, "manage_users")) return denied("manage_users");
+      const registration = await updateRegistrationSettings({ mode: String(input.mode ?? "approval") as "open" | "approval" | "closed", default_role: String(input.default_role ?? "subscriber") });
+      return response({ registration, studio: await loadStudio(request, user) });
     }
 
     if (input.action !== "saveEntry") return response("Unsupported CMS action.", 400);

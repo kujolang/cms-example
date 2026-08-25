@@ -28,9 +28,9 @@ export default function LoginForm({ returnTo, local }: { returnTo: string; local
   return <main className="login-shell">
     <section className="login-card">
       <div className="login-mark"><IconLock size={24} stroke={1.7} /></div>
-      <p className="eyebrow">Protected editorial workspace</p>
+      <p className="eyebrow">Your publishing account</p>
       <h1>Sign in to Kujo CMS</h1>
-      <p className="login-intro">Content, taxonomy, media, users, and publishing controls require an authenticated account with the right capabilities.</p>
+      <p className="login-intro">Manage your profile or enter the editorial studio when your role includes publishing capabilities.</p>
       {local ? <>
         <form onSubmit={submit}>
           <label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label>
@@ -38,6 +38,7 @@ export default function LoginForm({ returnTo, local }: { returnTo: string; local
           <button className="button" type="submit" disabled={busy}><IconLogin2 size={18} /> <span>{busy ? "Signing in…" : "Sign in"}</span></button>
         </form>
         <div className="demo-accounts"><b>Local demonstration accounts</b><span>Administrator: admin@fieldnotes.local / fieldnotes-demo</span><span>Editor: editor@fieldnotes.local / editor-demo</span></div>
+        <p className="auth-switch">New here? <a href="/signup">Create an account</a></p>
       </> : <a className="button hosted-login" href={`/signin-with-chatgpt?return_to=${encodeURIComponent(returnTo)}`}><span>Sign in with ChatGPT</span><IconArrowRight size={18} /></a>}
       <p className="login-notice" aria-live="polite">{notice}</p>
       <a className="login-back" href="/">View the public publication</a>

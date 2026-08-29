@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CMS_REPO="${CMS_REPO:-${PROJECT_DIR}/../cms}"
 KUJO_BIN="${KUJO_BIN:-$(command -v kujo)}"
+CMS_DATABASE_PATH="${CMS_DB_PATH:-${PROJECT_DIR}/.data/cms.db}"
 
 if [[ -z "${KUJO_BIN}" || ! -x "${KUJO_BIN}" ]]; then
   echo "Kujo runtime not found. Set KUJO_BIN to the kujo executable." >&2
@@ -33,7 +34,7 @@ cd "${CMS_REPO}"
 CMS_API_HOST=127.0.0.1 \
 CMS_API_PORT=4200 \
 CMS_SITE_URL=http://127.0.0.1:4200 \
-CMS_DB_PATH="${PROJECT_DIR}/.data/cms.db" \
+CMS_DB_PATH="${CMS_DATABASE_PATH}" \
 CMS_CORS_ORIGIN=http://localhost:3000 \
 CMS_API_TOKEN="${DEMO_TOKEN}" \
 CMS_ENV=development \

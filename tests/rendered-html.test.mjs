@@ -77,7 +77,7 @@ test("server-renders the CMS console, article details, and standalone pages", as
   assert.match(articleHtml, /Useful ideas, delivered without the noise/);
   assert.doesNotMatch(articleHtml, /Published article/);
   assert.match(articleHtml, /property="og:image"/i);
-  assert.match(pageHtml, /<title>Principles — Field Notes<\/title>/i);
+  assert.match(pageHtml, /<title>Field Notes principles — Field Notes<\/title>/i);
   assert.match(pageHtml, /Build for understanding/);
   assert.match(pageHtml, /Keep the frontend free/);
   assert.doesNotMatch(pageHtml, /Published page from Kujo CMS/);
@@ -127,7 +127,8 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(edit, /Edit content/);
   assert.match(taxonomies, /Organize the publication/);
   assert.match(seo, /Search and social presentation/);
-  assert.match(seo, /Social networks and content types/);
+  assert.match(seo, /Sharing channels/);
+  assert.match(seo, /Find the work that matters/);
   assert.match(users, /People, roles, and access/);
   assert.match(users, /New account policy/);
   assert.match(newUser, /Temporary password/);
@@ -192,8 +193,13 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   assert.match(cmsRoute, /Cache-Control.*max-age=31536000, immutable/);
   assert.match(cmsRoute, /Sign in to access CMS Studio/);
   const studio = await readFile(new URL("../app/cms/CmsStudio.tsx", import.meta.url), "utf8");
+  const seoWorkspace = await readFile(new URL("../app/cms/SeoWorkspace.tsx", import.meta.url), "utf8");
   assert.match(studio, /theme-select-menu/);
   assert.doesNotMatch(studio, /<select\b|StyledSelect/);
   assert.doesNotMatch(studio, /All changes save to the live CMS API|Authenticated CMS API/);
   assert.match(studio, /split\(","\)/);
+  assert.match(seoWorkspace, /bulkUpdateSeo/);
+  assert.match(seoWorkspace, /focus_keyword/);
+  assert.match(seoWorkspace, /Bluesky account/);
+  assert.match(cmsRoute, /\/v1\/seo\/entries\/bulk/);
 });

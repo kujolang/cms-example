@@ -14,6 +14,8 @@ It includes:
 
 The frontend is a separate application. It only reads published content from the CMS public API; write credentials stay in the local seed script.
 
+This repository is also a portable theme package. [`kujo-theme.json`](kujo-theme.json) declares its entrypoints, templates, assets, settings, compatible CMS contract, content types, menu locations, and distribution metadata. See [`docs/THEME-PACKAGE.md`](docs/THEME-PACKAGE.md) for validation, installation, reuse, and deployment guidance.
+
 The publication includes a consistent site header and footer, a live slide-out search, responsive article archive, configurable Tabler-powered share links, newsletter callouts, and a rich Markdown renderer with syntax-highlighted code and copy controls.
 
 The CMS Studio provides a familiar multi-page administration flow: `/cms` is a dashboard, `/cms/content` is a browse-first, filterable content list, and creation, editing, taxonomies, SEO reporting, social-sharing controls, user management, and registration settings each have dedicated routes. The SEO workspace is paginated and filterable, exposes issue-level content signals and metadata lengths, supports focused quick edits and checkbox-driven bulk updates, and stores optional account attribution for each configured sharing network. Editors can create articles or pages, edit Markdown with a rendered preview, choose an active author, manage status and scheduling, assign taxonomy terms, create custom taxonomies and comma-separated term batches, edit SEO and custom metadata, upload social images, and save revision snapshots before updates. Every menu, select control, and icon is part of the same responsive site kit, with icons supplied by Tabler Icons.

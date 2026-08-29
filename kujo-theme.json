@@ -1,0 +1,57 @@
+{
+  "schema": "kujo.theme/v1",
+  "key": "field_notes",
+  "name": "Field Notes",
+  "version": "1.0.0",
+  "description": "A responsive editorial publication and administration frontend for Kujo CMS.",
+  "license": "MIT",
+  "author": {
+    "name": "Kujo",
+    "url": "https://kujo.dev"
+  },
+  "compatibility": {
+    "cms": ">=1.0.0",
+    "webmcp": "kujo-cms-webmcp/v1"
+  },
+  "entrypoints": {
+    "web": "app/layout.tsx",
+    "preview": "app/page.tsx",
+    "studio": "app/cms/page.tsx"
+  },
+  "templates": {
+    "home": "app/page.tsx",
+    "archive": "app/articles/page.tsx",
+    "single": "app/articles/[slug]/page.tsx",
+    "page": "app/pages/[slug]/page.tsx"
+  },
+  "assets": {
+    "styles": ["app/globals.css"],
+    "scripts": [],
+    "images": ["public/images/field-notes-hero.webp"]
+  },
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "site_title": {"type": "string", "maxLength": 120},
+      "site_description": {"type": "string", "maxLength": 240},
+      "accent_color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+      "articles_per_page": {"type": "integer", "minimum": 1, "maximum": 50}
+    },
+    "additionalProperties": false
+  },
+  "defaults": {
+    "site_title": "Field Notes",
+    "site_description": "Independent stories and practical ideas.",
+    "accent_color": "#e45f2b",
+    "articles_per_page": 12
+  },
+  "supports": ["menus", "seo", "social_sharing", "accounts", "webmcp", "studio"],
+  "content_types": ["article", "page"],
+  "menu_locations": ["header", "footer"],
+  "distribution": {
+    "homepage": "https://kujo.dev",
+    "repository": "https://github.com/kujolang/cms-example",
+    "package_url": "",
+    "integrity": ""
+  }
+}

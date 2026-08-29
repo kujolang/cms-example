@@ -19,8 +19,8 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
     title: seo.title,
     description: seo.description,
     alternates: seo.canonicalUrl ? { canonical: seo.canonicalUrl } : undefined,
-    openGraph: { title: seo.title, description: seo.description, type: "article", images: seo.image ? [seo.image] : [] },
-    twitter: { card: "summary_large_image", title: seo.title, description: seo.description, images: seo.image ? [seo.image] : [] },
+    openGraph: { title: seo.socialTitle, description: seo.socialDescription, type: "article", images: seo.image ? [seo.image] : [] },
+    twitter: { card: "summary_large_image", title: seo.socialTitle, description: seo.socialDescription, images: seo.image ? [seo.image] : [] },
   };
 }
 
@@ -39,7 +39,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   const meta = getEntryMeta(article);
   const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : "/images/clarity-context-control.webp";
-  const sharing = await getSocialSharingSettings().catch(() => ({ networks: ["x", "linkedin", "facebook", "email"], content_types: ["article"] }));
+  const sharing = await getSocialSharingSettings().catch(() => ({ networks: ["x", "linkedin", "facebook", "bluesky", "reddit", "whatsapp", "email"], content_types: ["article"], accounts: {} }));
 
   return (
     <main>
@@ -55,7 +55,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         <img className="detail-image" src={coverImage} width="1672" height="941" fetchPriority="high" decoding="async" alt={`Editorial illustration for ${article.title}`} />
         <p className="article-deck">{article.excerpt}</p>
         <MarkdownContent markdown={article.body} />
-        {sharing.content_types.includes("article") && <ShareLinks title={article.title} networks={sharing.networks} />}
+        {sharing.content_types.includes("article") && <ShareLinks title={article.title} networks={sharing.networks} accounts={sharing.accounts} />}
         <NewsletterBox />
       </article>
       <SiteFooter />

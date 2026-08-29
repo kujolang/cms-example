@@ -113,6 +113,8 @@ export function getEntrySeo(entry: CmsEntry) {
   return {
     title: typeof seo.title === "string" && seo.title ? seo.title : entry.title,
     description: typeof seo.description === "string" && seo.description ? seo.description : entry.excerpt,
+    socialTitle: typeof seo.social_title === "string" && seo.social_title ? seo.social_title : typeof seo.title === "string" && seo.title ? seo.title : entry.title,
+    socialDescription: typeof seo.social_description === "string" && seo.social_description ? seo.social_description : typeof seo.description === "string" && seo.description ? seo.description : entry.excerpt,
     canonicalUrl: typeof seo.canonical_url === "string" ? seo.canonical_url : "",
     image: typeof seo.og_image_url === "string" && seo.og_image_url
       ? seo.og_image_url

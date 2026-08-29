@@ -27,7 +27,7 @@ export type CmsUserRecord = {
 
 export type CmsRoleRecord = { id: number; role_key: string; name: string; permissions_json: string; is_system: number };
 export type RegistrationSettings = { mode: "open" | "approval" | "closed"; default_role: string };
-export type SocialSharingSettings = { networks: string[]; content_types: string[] };
+export type SocialSharingSettings = { networks: string[]; content_types: string[]; accounts: Record<string, string> };
 export type PasswordCredential = { id: number; password_hash: string; password_salt: string; password_iterations: number };
 export type CmsUserInput = Partial<Omit<CmsUserRecord, "id" | "created_at" | "updated_at" | "social_json">> & {
   social?: Record<string, string>;

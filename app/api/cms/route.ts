@@ -88,7 +88,8 @@ function base64ToBytes(value: string) {
 }
 
 export async function GET(request: Request) {
-  const mediaId = Number(new URL(request.url).searchParams.get("media") ?? 0);
+  const requestUrl = new URL(request.url);
+  const mediaId = Number(requestUrl.searchParams.get("media") ?? 0);
   if (Number.isInteger(mediaId) && mediaId > 0) {
     try {
       const media = await cmsRequest<{ mime_type: string; meta_json: string }>(`/v1/media/${mediaId}`);
@@ -106,6 +107,15 @@ export async function GET(request: Request) {
   if (!user) return response("Sign in to access CMS Studio.", 401);
   if (!hasCapability(user, "view_content")) return denied("view_content");
   try {
+    if (requestUrl.searchParams.get("resource") === "seo") {
+      if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
+      const upstreamQuery = new URLSearchParams();
+      for (const key of ["limit", "offset", "q", "content_type", "status", "readiness", "issue", "focus_keyword", "sort_by", "sort_dir"]) {
+        const value = requestUrl.searchParams.get(key);
+        if (value) upstreamQuery.set(key, value);
+      }
+      return response(await cmsRequest(`/v1/seo/entries?${upstreamQuery.toString()}`));
+    }
     return response(await loadStudio(request, user));
   } catch (error) {
     return response(error instanceof Error ? error.message : "CMS unavailable", 502);
@@ -241,8 +251,20 @@ export async function POST(request: Request) {
     }
     if (input.action === "updateSocialSharing") {
       if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
-      const socialSharing = await updateSocialSharingSettings({ networks: Array.isArray(input.networks) ? input.networks.map(String) : [], content_types: Array.isArray(input.content_types) ? input.content_types.map(String) : [] });
+      const socialSharing = await updateSocialSharingSettings({ networks: Array.isArray(input.networks) ? input.networks.map(String) : [], content_types: Array.isArray(input.content_types) ? input.content_types.map(String) : [], accounts: typeof input.accounts === "object" && input.accounts ? Object.fromEntries(Object.entries(input.accounts as Record<string, unknown>).map(([key, value]) => [key, String(value)])) : {} });
       return response({ socialSharing, studio: await loadStudio(request, user) });
+    }
+    if (input.action === "updateSeo") {
+      if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
+      const id = Number(input.id);
+      if (!Number.isInteger(id) || id <= 0 || typeof input.changes !== "object" || !input.changes) return response("A valid entry ID and SEO changes are required.", 400);
+      return response(await cmsRequest(`/v1/entries/${id}/seo`, { method: "PATCH", body: JSON.stringify(input.changes) }));
+    }
+    if (input.action === "bulkUpdateSeo") {
+      if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
+      const entryIds = Array.isArray(input.entry_ids) ? input.entry_ids.map(Number).filter((id) => Number.isInteger(id) && id > 0).slice(0, 200) : [];
+      if (entryIds.length === 0 || typeof input.changes !== "object" || !input.changes) return response("Select at least one entry and provide SEO changes.", 400);
+      return response(await cmsRequest("/v1/seo/entries/bulk", { method: "POST", body: JSON.stringify({ entry_ids: entryIds, changes: input.changes }) }));
     }
 
     if (input.action !== "saveEntry") return response("Unsupported CMS action.", 400);

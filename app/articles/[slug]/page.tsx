@@ -39,7 +39,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   const meta = getEntryMeta(article);
   const coverImage = typeof meta.cover_image === "string" ? meta.cover_image : "/images/clarity-context-control.webp";
-  const sharing = await getSocialSharingSettings().catch(() => ({ networks: ["x", "linkedin", "facebook", "bluesky", "reddit", "whatsapp", "email"], content_types: ["article"], accounts: {} }));
+  const sharing = await getSocialSharingSettings().catch(() => ({ networks: ["x", "linkedin", "facebook", "bluesky", "reddit", "whatsapp", "email", "pinterest"], content_types: ["article"], accounts: {} }));
 
   return (
     <main>

@@ -6,6 +6,7 @@ import {
   IconBrandBluesky,
   IconBrandFacebook,
   IconBrandLinkedin,
+  IconBrandPinterest,
   IconBrandReddit,
   IconBrandWhatsapp,
   IconBrandX,
@@ -28,13 +29,14 @@ type SeoReport = { items: SeoItem[]; total: number; limit: number; offset: numbe
 
 const emptyReport: SeoReport = { items: [], total: 0, limit: 25, offset: 0, summary: { total: 0, missing_titles: 0, missing_descriptions: 0, missing_keywords: 0, missing_social_images: 0, missing_terms: 0 } };
 const networkOptions = [
-  { value: "x", label: "X", icon: IconBrandX },
-  { value: "linkedin", label: "LinkedIn", icon: IconBrandLinkedin },
-  { value: "facebook", label: "Facebook", icon: IconBrandFacebook },
-  { value: "bluesky", label: "Bluesky", icon: IconBrandBluesky },
-  { value: "reddit", label: "Reddit", icon: IconBrandReddit },
-  { value: "whatsapp", label: "WhatsApp", icon: IconBrandWhatsapp },
-  { value: "email", label: "Email", icon: IconMail },
+  { value: "x", label: "X", icon: IconBrandX, accountLabel: "X account", prefix: "@", placeholder: "fieldnotes" },
+  { value: "linkedin", label: "LinkedIn", icon: IconBrandLinkedin, accountLabel: "LinkedIn account", prefix: "", placeholder: "field-notes" },
+  { value: "facebook", label: "Facebook", icon: IconBrandFacebook, accountLabel: "Facebook account", prefix: "", placeholder: "fieldnotes" },
+  { value: "bluesky", label: "Bluesky", icon: IconBrandBluesky, accountLabel: "Bluesky account", prefix: "@", placeholder: "fieldnotes.bsky.social" },
+  { value: "reddit", label: "Reddit", icon: IconBrandReddit, accountLabel: "Reddit account", prefix: "u/", placeholder: "fieldnotes" },
+  { value: "whatsapp", label: "WhatsApp", icon: IconBrandWhatsapp, accountLabel: "WhatsApp account", prefix: "+", placeholder: "15551234567" },
+  { value: "email", label: "Email", icon: IconMail, accountLabel: "Email account", prefix: "", placeholder: "hello@example.com" },
+  { value: "pinterest", label: "Pinterest", icon: IconBrandPinterest, accountLabel: "Pinterest account", prefix: "@", placeholder: "fieldnotes" },
 ] as const;
 const issueLabels: Record<string, string> = {
   missing_title: "Missing title",
@@ -77,7 +79,8 @@ export default function SeoWorkspace({ contentTypes, initialSharing }: { content
   const [editForm, setEditForm] = useState<ReturnType<typeof editState> | null>(null);
   const [bulkField, setBulkField] = useState("focus_keyword");
   const [bulkValue, setBulkValue] = useState("");
-  const [sharing, setSharing] = useState<SocialSharingSettings>(initialSharing ?? { networks: ["x", "linkedin", "facebook", "bluesky", "reddit", "whatsapp", "email"], content_types: ["article"], accounts: { x: "", bluesky: "" } });
+  const [sharing, setSharing] = useState<SocialSharingSettings>(initialSharing ?? { networks: ["x", "linkedin", "facebook", "bluesky", "reddit", "whatsapp", "email", "pinterest"], content_types: ["article"], accounts: {} });
+  const [editingNetwork, setEditingNetwork] = useState<(typeof networkOptions)[number]["value"] | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -135,6 +138,8 @@ export default function SeoWorkspace({ contentTypes, initialSharing }: { content
 
   const totalPages = Math.max(1, Math.ceil(report.total / report.limit));
   const currentPage = Math.floor(report.offset / report.limit) + 1;
+  const editingNetworkOption = networkOptions.find((network) => network.value === editingNetwork);
+  const EditingNetworkIcon = editingNetworkOption?.icon;
 
   return <>
     {notice && <p className="studio-notice seo-notice" aria-live="polite">{notice}</p>}
@@ -146,8 +151,8 @@ export default function SeoWorkspace({ contentTypes, initialSharing }: { content
     </div>
 
     <section className="sharing-settings sharing-settings-rich">
-      <div><p className="eyebrow">Distribution defaults</p><h2>Sharing channels</h2><p>Choose the actions readers see. Handles are appended where a network supports attribution.</p><div className="social-account-fields"><label><span>X account</span><div className="handle-input"><b>@</b><input value={sharing.accounts?.x ?? ""} onChange={(event) => setSharing({ ...sharing, accounts: { ...sharing.accounts, x: event.target.value.replace(/^@+/, "") } })} placeholder="fieldnotes" /></div></label><label><span>Bluesky account</span><input value={sharing.accounts?.bluesky ?? ""} onChange={(event) => setSharing({ ...sharing, accounts: { ...sharing.accounts, bluesky: event.target.value.replace(/^@+/, "") } })} placeholder="fieldnotes.bsky.social" /></label></div><button className="button sharing-save" type="button" disabled={busy} onClick={() => void saveSharing()}><IconCheck size={17} /> Save sharing setup</button></div>
-      <div><fieldset><legend>Networks</legend><div className="network-grid">{networkOptions.map(({ value, label, icon: Icon }) => <label className="network-toggle" key={value}><input type="checkbox" checked={sharing.networks.includes(value)} onChange={(event) => setSharing({ ...sharing, networks: event.target.checked ? [...sharing.networks, value] : sharing.networks.filter((item) => item !== value) })} /><span><Icon size={18} /><b>{label}</b>{sharing.networks.includes(value) && <IconCheck size={15} />}</span></label>)}</div></fieldset><fieldset><legend>Show on</legend>{contentTypes.map((type) => <label className="setting-check" key={type.type_key}><input type="checkbox" checked={sharing.content_types.includes(type.type_key)} onChange={(event) => setSharing({ ...sharing, content_types: event.target.checked ? [...sharing.content_types, type.type_key] : sharing.content_types.filter((item) => item !== type.type_key) })} /><span>{type.label}</span></label>)}</fieldset></div>
+      <div><p className="eyebrow">Distribution defaults</p><h2>Sharing channels</h2><p>Choose the actions readers see. Use the edit control on a channel to add its account attribution.</p><button className="button sharing-save" type="button" disabled={busy} onClick={() => void saveSharing()}><IconCheck size={17} /> Save sharing setup</button></div>
+      <div><fieldset><legend>Networks</legend><div className="network-grid">{networkOptions.map(({ value, label, icon: Icon }) => <div className={`network-control${editingNetwork === value ? " editing" : ""}`} key={value}><label className="network-toggle"><input type="checkbox" checked={sharing.networks.includes(value)} onChange={(event) => setSharing({ ...sharing, networks: event.target.checked ? [...sharing.networks, value] : sharing.networks.filter((item) => item !== value) })} /><span><Icon size={18} /><b>{label}</b><i className="network-check">{sharing.networks.includes(value) && <IconCheck size={15} />}</i></span></label><button className="network-edit" type="button" aria-label={`Edit ${label} account`} aria-expanded={editingNetwork === value} onClick={() => setEditingNetwork((current) => current === value ? null : value)}><IconEdit size={15} /></button></div>)}</div>{editingNetworkOption && EditingNetworkIcon && <div className="network-account-editor"><div><span><EditingNetworkIcon size={18} /><b>{editingNetworkOption.accountLabel}</b></span><button type="button" aria-label="Close network account editor" onClick={() => setEditingNetwork(null)}><IconX size={16} /></button></div><label><span>Account attribution</span><div className="handle-input">{editingNetworkOption.prefix && <b>{editingNetworkOption.prefix}</b>}<input value={sharing.accounts?.[editingNetworkOption.value] ?? ""} onChange={(event) => { let nextValue = event.target.value; if (editingNetworkOption.prefix === "@") nextValue = nextValue.replace(/^@+/, ""); if (editingNetworkOption.prefix === "u/") nextValue = nextValue.replace(/^u\//i, ""); if (editingNetworkOption.prefix === "+") nextValue = nextValue.replace(/^\++/, ""); setSharing({ ...sharing, accounts: { ...sharing.accounts, [editingNetworkOption.value]: nextValue } }); }} placeholder={editingNetworkOption.placeholder} /></div></label><small>Used when this channel supports account attribution in its sharing flow.</small></div>}</fieldset><fieldset><legend>Show on</legend>{contentTypes.map((type) => <label className="setting-check" key={type.type_key}><input type="checkbox" checked={sharing.content_types.includes(type.type_key)} onChange={(event) => setSharing({ ...sharing, content_types: event.target.checked ? [...sharing.content_types, type.type_key] : sharing.content_types.filter((item) => item !== type.type_key) })} /><span>{type.label}</span></label>)}</fieldset></div>
     </section>
 
     <section className="seo-inventory">

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { IconBrandBluesky, IconBrandFacebook, IconBrandLinkedin, IconBrandReddit, IconBrandWhatsapp, IconBrandX, IconMail, IconSend } from "@tabler/icons-react";
+import { IconBrandBluesky, IconBrandFacebook, IconBrandLinkedin, IconBrandPinterest, IconBrandReddit, IconBrandWhatsapp, IconBrandX, IconMail, IconSend } from "@tabler/icons-react";
 
-const icons = { x: IconBrandX, linkedin: IconBrandLinkedin, facebook: IconBrandFacebook, bluesky: IconBrandBluesky, reddit: IconBrandReddit, whatsapp: IconBrandWhatsapp, email: IconMail };
+const icons = { x: IconBrandX, linkedin: IconBrandLinkedin, facebook: IconBrandFacebook, bluesky: IconBrandBluesky, reddit: IconBrandReddit, whatsapp: IconBrandWhatsapp, email: IconMail, pinterest: IconBrandPinterest };
 const subscribeToLocation = () => () => {};
 
 export function ShareLinks({ title, networks, accounts = {} }: { title: string; networks: string[]; accounts?: Record<string, string> }) {
   const url = useSyncExternalStore(subscribeToLocation, () => window.location.href, () => "");
   const xAccount = (accounts.x ?? "").replace(/^@+/, "");
   const blueskyAccount = (accounts.bluesky ?? "").replace(/^@+/, "");
+  const pinterestAccount = (accounts.pinterest ?? "").replace(/^@+/, "");
   const links: Record<string, string> = {
     x: `https://x.com/intent/post?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}${xAccount ? `&via=${encodeURIComponent(xAccount)}` : ""}`,
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
@@ -18,6 +19,7 @@ export function ShareLinks({ title, networks, accounts = {} }: { title: string; 
     reddit: `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`,
     whatsapp: `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`,
     email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(url)}`,
+    pinterest: `https://www.pinterest.com/pin/create/button/?url=${encodeURIComponent(url)}&description=${encodeURIComponent(`${title}${pinterestAccount ? ` via @${pinterestAccount}` : ""}`)}`,
   };
   return <aside className="share-links" aria-label="Share this article"><p>Share this article</p><div>{networks.map((network) => { const Icon = icons[network as keyof typeof icons]; return Icon ? <a href={links[network]} target={network === "email" ? undefined : "_blank"} rel="noreferrer" aria-label={`Share via ${network}`} key={network}><Icon size={20} stroke={1.7} /></a> : null; })}</div></aside>;
 }

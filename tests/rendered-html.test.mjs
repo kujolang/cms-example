@@ -74,6 +74,7 @@ test("server-renders the CMS console, article details, and standalone pages", as
   assert.match(articleHtml, /A CMS that stays out of the frontend/);
   assert.match(articleHtml, /Keep control where it belongs/);
   assert.match(articleHtml, /Share this article/);
+  assert.match(articleHtml, /Share via pinterest/);
   assert.match(articleHtml, /Useful ideas, delivered without the noise/);
   assert.doesNotMatch(articleHtml, /Published article/);
   assert.match(articleHtml, /property="og:image"/i);
@@ -128,6 +129,8 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(taxonomies, /Organize the publication/);
   assert.match(seo, /Search and social presentation/);
   assert.match(seo, /Sharing channels/);
+  assert.match(seo, /Pinterest/);
+  assert.match(seo, /Edit X account/);
   assert.match(seo, /Find the work that matters/);
   assert.match(users, /People, roles, and access/);
   assert.match(users, /New account policy/);
@@ -200,6 +203,7 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   assert.match(studio, /split\(","\)/);
   assert.match(seoWorkspace, /bulkUpdateSeo/);
   assert.match(seoWorkspace, /focus_keyword/);
-  assert.match(seoWorkspace, /Bluesky account/);
+  assert.match(seoWorkspace, /Pinterest account/);
+  assert.match(seoWorkspace, /network-account-editor/);
   assert.match(cmsRoute, /\/v1\/seo\/entries\/bulk/);
 });

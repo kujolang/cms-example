@@ -468,13 +468,26 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 .handle-input { display: grid; grid-template-columns: auto 1fr; align-items: center; border: 1px solid var(--line); background: #fbfcfa; }
 .handle-input b { padding-left: 10px; color: var(--muted); }
 .handle-input input { border: 0; }
-.sharing-save { margin-top: 14px; border: 0; }
+.sharing-save { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-top: 18px; border: 0; }
 .network-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.network-control { position: relative; min-width: 0; }
 .network-toggle { position: relative; }
 .network-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.network-toggle > span { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; min-height: 42px; padding: 9px 10px; border: 1px solid var(--line); background: #fbfcfa; color: var(--muted); cursor: pointer; }
+.network-toggle > span { display: grid; grid-template-columns: auto 1fr 18px; align-items: center; gap: 8px; min-height: 42px; padding: 9px 10px; border: 1px solid var(--line); background: #fbfcfa; color: var(--muted); cursor: pointer; }
 .network-toggle input:checked + span { border-color: var(--ink); background: var(--ink); color: white; }
 .network-toggle b { font-size: .72rem; }
+.network-check { display: grid; place-items: center; width: 18px; height: 18px; font-style: normal; transition: opacity .15s ease; }
+.network-edit { position: absolute; top: 50%; right: 7px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid rgba(255,255,255,.3); border-radius: 2px; opacity: 0; background: var(--ink); color: white; cursor: pointer; transform: translateY(-50%); transition: opacity .15s ease; }
+.network-control:hover .network-edit, .network-control:focus-within .network-edit, .network-control.editing .network-edit { opacity: 1; }
+.network-control:hover .network-check, .network-control:focus-within .network-check, .network-control.editing .network-check { opacity: 0; }
+.network-account-editor { display: grid; gap: 11px; margin-top: 10px; padding: 14px; border: 1px solid var(--ink); background: #f7f8f5; }
+.network-account-editor > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.network-account-editor > div > span { display: inline-flex; align-items: center; gap: 8px; font-size: .76rem; }
+.network-account-editor > div > button { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); background: white; color: var(--ink); cursor: pointer; }
+.network-account-editor label > span { display: block; margin-bottom: 7px; color: var(--muted); font: .62rem monospace; text-transform: uppercase; }
+.network-account-editor input { width: 100%; height: 40px; padding: 0 10px; border: 0; background: transparent; font: inherit; }
+.network-account-editor small { color: var(--muted); font-size: .65rem; line-height: 1.4; }
+.handle-input input:only-child { grid-column: 1 / -1; }
 .seo-inventory { max-width: 1600px; margin: 0 auto; border: 1px solid var(--line); background: white; }
 .seo-inventory-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 24px; border-bottom: 1px solid var(--line); }
 .seo-inventory-head h2 { margin-top: 7px; font-size: 1.55rem; }
@@ -520,7 +533,10 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 .seo-pagination button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); background: white; color: var(--ink); cursor: pointer; }
 .seo-pagination button:disabled { cursor: not-allowed; opacity: .4; }
 .seo-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(16, 24, 19, .58); }
-.seo-modal { width: min(760px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; border: 1px solid #657269; background: white; box-shadow: 0 28px 80px rgba(0,0,0,.25); }
+.seo-modal { width: min(760px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; border: 1px solid #657269; background: white; scrollbar-color: #78857c #dfe3df; scrollbar-width: thin; box-shadow: 0 28px 80px rgba(0,0,0,.25); }
+.seo-modal::-webkit-scrollbar { width: 10px; height: 10px; }
+.seo-modal::-webkit-scrollbar-track { background: #dfe3df; }
+.seo-modal::-webkit-scrollbar-thumb { border: 2px solid #dfe3df; border-radius: 10px; background: #78857c; }
 .seo-modal > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
 .seo-modal h2 { margin: 7px 0 5px; font-size: 1.5rem; }
 .seo-modal header span { color: var(--muted); font: .65rem monospace; }
@@ -533,7 +549,7 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 .seo-modal-fields textarea { min-height: 82px; padding: 10px; resize: vertical; }
 .seo-modal > footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--line); background: #f7f8f5; }
 .seo-modal > footer a { color: var(--ink); font-size: .72rem; text-decoration: underline; }
-.seo-modal > footer button { border: 0; }
+.seo-modal > footer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; border: 0; }
 
 @media (max-width: 1080px) {
   .studio-sidebar { position: static; width: 100%; padding: 18px 22px; }.console-wordmark { margin: 0 0 18px; }.studio-sidebar nav { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }.studio-sidebar nav a { flex: 0 0 auto; }.view-site-link { margin-top: 14px; }.studio-account { position: absolute; top: 15px; right: 18px; width: min(270px, 42vw); margin: 0; border: 0; }.studio-workspace { margin-left: 0; padding: 30px 20px 70px; }.editor-layout { grid-template-columns: minmax(0, 1fr) 300px; }.user-editor-section { grid-template-columns: 1fr; }.content-list-tools .studio-search { flex: 1 1 100%; width: 100%; }.taxonomy-admin-grid { grid-template-columns: 1fr; }

@@ -20,7 +20,7 @@ bash /path/to/cms/scripts/cms-extensions.sh theme:validate kujo-theme.json
 CMS_API_TOKEN=... bash /path/to/cms/scripts/cms-extensions.sh theme:install-zip dist/cms-field-notes-theme.zip active
 ```
 
-Administrators can upload the same ZIP from **CMS Studio → Themes & plugins**. The administration adapter verifies the archive and sends its manifest plus a digest-bound package receipt to the CMS. A deployment adapter remains responsible for building and serving theme code in an isolated environment.
+Administrators can upload the same ZIP from **CMS Studio → Themes**. Plugins have their own adjacent **Plugins** screen. The administration adapter verifies the archive and sends its manifest plus a digest-bound package receipt to the CMS. A deployment adapter remains responsible for building and serving theme code in an isolated environment.
 
 ## Customization
 

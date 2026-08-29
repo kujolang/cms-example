@@ -27,6 +27,23 @@ function sameOrigin(request: Request) {
   return !origin || origin === new URL(request.url).origin;
 }
 
+export async function loginStudioCredentials(request: Request, email: string, password: string) {
+  const key = `${request.headers.get("cf-connecting-ip") ?? "local"}:${email.toLowerCase()}`;
+  const now = Date.now();
+  const failure = failures.get(key);
+  if (failure && failure.resetAt > now && failure.count >= 5) {
+    return { user: null, error: "Too many sign-in attempts. Try again in 15 minutes.", status: 429 } as const;
+  }
+
+  const result = await authenticateLocalCredentials(request, email, password);
+  if (!result.user) {
+    failures.set(key, { count: failure && failure.resetAt > now ? failure.count + 1 : 1, resetAt: now + 15 * 60 * 1000 });
+    return { user: null, error: result.error || "The email or password is incorrect.", status: 401 } as const;
+  }
+  failures.delete(key);
+  return { user: result.user, error: "", status: 200 } as const;
+}
+
 export async function GET(request: Request) {
   const user = await authenticateStudioRequest(request);
   const registration = await getRegistrationSettings().catch(() => ({ mode: "closed" as const, default_role: "subscriber" }));
@@ -95,17 +112,10 @@ export async function POST(request: Request) {
   }
   if (input.action !== "login") return json("Unsupported authentication action.", 400);
 
-  const key = `${request.headers.get("cf-connecting-ip") ?? "local"}:${String(input.email ?? "").toLowerCase()}`;
-  const now = Date.now();
-  const failure = failures.get(key);
-  if (failure && failure.resetAt > now && failure.count >= 5) return json("Too many sign-in attempts. Try again in 15 minutes.", 429);
-
-  const result = await authenticateLocalCredentials(request, String(input.email ?? ""), String(input.password ?? ""));
+  const result = await loginStudioCredentials(request, String(input.email ?? ""), String(input.password ?? ""));
   if (!result.user) {
-    failures.set(key, { count: failure && failure.resetAt > now ? failure.count + 1 : 1, resetAt: now + 15 * 60 * 1000 });
-    return json(result.error || "The email or password is incorrect.", 401);
+    return json(result.error, result.status);
   }
-  failures.delete(key);
   const token = await createSessionToken(request, result.user);
   return json({ authenticated: true, user: result.user }, 200, { "Set-Cookie": sessionCookie(request, token) });
 }

@@ -174,6 +174,31 @@ test("protects CMS pages and API behind an authenticated session", async () => {
   assert.match(await login.text(), /Sign in to Kujo CMS/);
 });
 
+test("supports native sign-in and consistent icon-button alignment", async () => {
+  const login = await render("/api/cms/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", origin: "http://localhost" },
+    body: new URLSearchParams({ email: "admin@fieldnotes.local", password: "fieldnotes-demo", returnTo: "/cms/seo" }),
+    redirect: "manual",
+  });
+  assert.equal(login.status, 303);
+  assert.equal(new URL(login.headers.get("location") ?? "", "http://localhost").pathname, "/cms/seo");
+  assert.match(login.headers.get("set-cookie") ?? "", /kujo_cms_session=/);
+
+  const invalid = await render("/api/cms/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", origin: "http://localhost" },
+    body: new URLSearchParams({ email: "admin@fieldnotes.local", password: "incorrect-password", returnTo: "/cms/seo" }),
+    redirect: "manual",
+  });
+  assert.equal(invalid.status, 303);
+  assert.equal(new URL(invalid.headers.get("location") ?? "", "http://localhost").searchParams.get("reason"), "credentials");
+
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.button\s*\{[^}]*align-items:\s*center[^}]*gap:\s*8px/s);
+  assert.match(css, /:where\(button, a\.button, a\.hosted-login\)\s*>\s*svg\s*\{[^}]*align-self:\s*center/s);
+});
+
 test("removes the disposable starter surface", async () => {
   const [page, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

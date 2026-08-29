@@ -2,7 +2,7 @@
   "schema": "kujo.theme/v1",
   "key": "field_notes",
   "name": "Field Notes",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A responsive editorial publication and administration frontend for Kujo CMS.",
   "license": "MIT",
   "author": {

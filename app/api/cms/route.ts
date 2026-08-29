@@ -118,8 +118,8 @@ export async function GET(request: Request) {
     }
     if (requestUrl.searchParams.get("resource") === "ai") {
       if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
-      const [abilities, connectors, mcp] = await Promise.all([cmsRequest("/v1/abilities"), cmsRequest("/v1/ai/connectors"), cmsRequest("/v1/ai/mcp/tools")]);
-      return response({ abilities, connectors, mcp });
+      const [abilities, connectors, mcp, webmcp] = await Promise.all([cmsRequest("/v1/abilities"), cmsRequest("/v1/ai/connectors"), cmsRequest("/v1/ai/mcp/tools"), cmsRequest("/v1/webmcp")]);
+      return response({ abilities, connectors, mcp, webmcp });
     }
     return response(await loadStudio(request, user));
   } catch (error) {

@@ -115,13 +115,14 @@ test("server-renders separate CMS administration routes", async () => {
     render("/cms/taxonomies", { headers: { cookie } }),
     render("/cms/seo", { headers: { cookie } }),
     render("/cms/ai", { headers: { cookie } }),
-    render("/cms/extensions", { headers: { cookie } }),
+    render("/cms/themes", { headers: { cookie } }),
+    render("/cms/plugins", { headers: { cookie } }),
     render("/cms/users", { headers: { cookie } }),
     render("/cms/users/new", { headers: { cookie } }),
     render("/cms/users/1", { headers: { cookie } }),
   ]);
   responses.forEach((response) => assert.equal(response.status, 200));
-  const [content, create, edit, taxonomies, seo, ai, extensions, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
+  const [content, create, edit, taxonomies, seo, ai, themes, plugins, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
   assert.match(content, /Search by title or slug/);
   assert.match(content, /Filter by content model/);
   assert.match(content, /Filter by taxonomy term/);
@@ -134,12 +135,20 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(seo, /Pinterest/);
   assert.match(seo, /Edit X account/);
   assert.match(seo, /Find the work that matters/);
-  assert.match(ai, /Agent-ready infrastructure/);
-  assert.match(ai, /Discoverable capabilities, guarded execution/);
+  assert.doesNotMatch(ai, /Agent-ready infrastructure|AI control plane|Discoverable capabilities, guarded execution/i);
+  assert.match(ai, /One capability system, every agent path/);
+  assert.match(ai, /WebMCP public tools/);
+  assert.match(ai, /scripts\/cms-ai\.sh/);
+  assert.match(ai, /Protected writes stay in the Abilities API/);
   assert.match(ai, /Kujo ecosystem/);
-  assert.match(extensions, /Themes &amp; plugins/);
-  assert.match(extensions, /Your site, without the setup tax/);
-  assert.match(extensions, /cms-field-notes-theme/);
+  assert.match(themes, /<h1>Themes<\/h1>/);
+  assert.match(themes, /Install and manage portable CMS themes/);
+  assert.match(themes, /cms-field-notes-theme/);
+  assert.doesNotMatch(themes, /Verified packages|Install, remix, and extend|role="tablist"/i);
+  assert.match(plugins, /<h1>Plugins<\/h1>/);
+  assert.match(plugins, /Install and manage portable CMS plugins/);
+  assert.match(plugins, /cms-contact-form/);
+  assert.doesNotMatch(plugins, /Verified packages|Install, remix, and extend|role="tablist"/i);
   assert.match(users, /People, roles, and access/);
   assert.match(users, /New account policy/);
   assert.match(newUser, /Temporary password/);

@@ -7,8 +7,6 @@ import {
   IconExternalLink,
   IconPalette,
   IconPlug,
-  IconRefresh,
-  IconShieldCheck,
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
@@ -41,7 +39,7 @@ async function extensionRequest<T>(options?: RequestInit) {
   const response = await fetch("/api/cms/extensions", options);
   const payload = await response.json() as { ok: boolean; data?: T; error?: string };
   if (response.status === 401) {
-    window.location.assign(`/cms/login?returnTo=${encodeURIComponent("/cms/extensions")}`);
+    window.location.assign(`/cms/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
     throw new Error("Sign in required.");
   }
   if (!response.ok || !payload.ok || payload.data === undefined) throw new Error(payload.error ?? "The extension request failed.");
@@ -53,9 +51,8 @@ function formatBytes(value = 0) {
   return value < 1024 * 1024 ? `${Math.ceil(value / 1024)} KB package` : `${(value / 1024 / 1024).toFixed(1)} MB package`;
 }
 
-export default function ExtensionsWorkspace() {
+export default function ExtensionsWorkspace({ kind, refreshKey = 0 }: { kind: Kind; refreshKey?: number }) {
   const [data, setData] = useState<ExtensionData | null>(null);
-  const [tab, setTab] = useState<Kind>("theme");
   const [installKind, setInstallKind] = useState<Kind | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [activate, setActivate] = useState(true);
@@ -66,14 +63,14 @@ export default function ExtensionsWorkspace() {
 
   const refresh = async () => {
     try { setData(await extensionRequest<ExtensionData>()); setNotice(""); }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Themes and plugins are unavailable."); }
+    catch (error) { setNotice(error instanceof Error ? error.message : `${kind === "theme" ? "Themes" : "Plugins"} are unavailable.`); }
   };
 
   useEffect(() => {
     let active = true;
-    void extensionRequest<ExtensionData>().then((next) => { if (active) setData(next); }).catch((error) => { if (active) setNotice(error instanceof Error ? error.message : "Themes and plugins are unavailable."); });
+    void extensionRequest<ExtensionData>().then((next) => { if (active) { setData(next); setNotice(""); } }).catch((error) => { if (active) setNotice(error instanceof Error ? error.message : `${kind === "theme" ? "Themes" : "Plugins"} are unavailable.`); }).finally(() => { if (active) setWorking(false); });
     return () => { active = false; };
-  }, []);
+  }, [kind, refreshKey]);
 
   const openInstaller = (kind: Kind) => {
     setInstallKind(kind);
@@ -109,49 +106,41 @@ export default function ExtensionsWorkspace() {
     finally { setWorking(false); }
   };
 
-  const items = tab === "theme" ? data?.catalog.themes ?? [] : data?.catalog.plugins ?? [];
+  const items = kind === "theme" ? data?.catalog.themes ?? [] : data?.catalog.plugins ?? [];
   return <div className="extensions-workspace">
-    <section className="extensions-intro">
-      <div><span className="extensions-kicker"><IconShieldCheck size={17} /> Verified packages</span><h2>Your site, without the setup tax.</h2><p>Upload a portable ZIP and the CMS checks its structure, manifest, size, paths, and integrity before installation.</p></div>
-      <button type="button" className="button button-secondary" disabled={working} onClick={() => void refresh()}><IconRefresh size={17} className={working ? "spin" : ""} /><span>Refresh</span></button>
-    </section>
-
     {notice && <div className="extensions-notice" role="status">{notice}</div>}
 
     <section className="extension-library">
       <div className="extension-library-head">
-        <div className="extension-tabs" role="tablist" aria-label="Extension type">
-          <button type="button" role="tab" aria-selected={tab === "theme"} className={tab === "theme" ? "active" : ""} onClick={() => setTab("theme")}><IconPalette size={18} /><span>Themes</span><b>{data?.catalog.counts.themes ?? 0}</b></button>
-          <button type="button" role="tab" aria-selected={tab === "plugin"} className={tab === "plugin" ? "active" : ""} onClick={() => setTab("plugin")}><IconPlug size={18} /><span>Plugins</span><b>{data?.catalog.counts.plugins ?? 0}</b></button>
-        </div>
-        <button type="button" className="button" onClick={() => openInstaller(tab)}><IconUpload size={18} /><span>Upload {tab} ZIP</span></button>
+        <span className="extension-count">{kind === "theme" ? data?.catalog.counts.themes ?? 0 : data?.catalog.counts.plugins ?? 0} installed</span>
+        <button type="button" className="button" onClick={() => openInstaller(kind)}><IconUpload size={18} /><span>Upload {kind} ZIP</span></button>
       </div>
 
       <div className="extension-grid">
         {items.map((item) => {
           const active = item.status === "active";
           const repository = item.manifest.distribution?.repository || item.manifest.distribution?.homepage;
-          const tags = tab === "theme" ? item.manifest.supports ?? [] : item.manifest.capabilities ?? [];
-          return <article className={`extension-card ${active ? "active" : ""}`} key={`${tab}-${item.id}`}>
-            <div className="extension-card-icon">{tab === "theme" ? <IconPalette size={25} /> : <IconPlug size={25} />}</div>
+          const tags = kind === "theme" ? item.manifest.supports ?? [] : item.manifest.capabilities ?? [];
+          return <article className={`extension-card ${active ? "active" : ""}`} key={`${kind}-${item.id}`}>
+            <div className="extension-card-icon">{kind === "theme" ? <IconPalette size={25} /> : <IconPlug size={25} />}</div>
             <div className="extension-card-body">
               <div className="extension-title"><div><h3>{item.manifest.name}</h3><span>v{item.manifest.version}</span></div>{active && <em><IconCheck size={14} /> Active</em>}</div>
-              <p>{item.manifest.description || `A portable ${tab} package.`}</p>
+              <p>{item.manifest.description || `A portable ${kind} package.`}</p>
               <div className="extension-tags">{tags.slice(0, 4).map((tag) => <span key={tag}>{tag.replace(/_/g, " ")}</span>)}</div>
               <small>By {item.manifest.author?.name || "Independent creator"} · {formatBytes(item.package?.size_bytes)}</small>
               <div className="extension-card-actions">
-                {tab === "theme" && !active && <button type="button" className="button button-small" disabled={working} onClick={() => void action("activateTheme", item)}><IconCheck size={16} /><span>Activate</span></button>}
-                {tab === "plugin" && <button type="button" className={`button button-small ${active ? "button-secondary" : ""}`} disabled={working} onClick={() => void action("setPluginStatus", item, active ? "inactive" : "active")}><IconPlug size={16} /><span>{active ? "Deactivate" : "Activate"}</span></button>}
+                {kind === "theme" && !active && <button type="button" className="button button-small" disabled={working} onClick={() => void action("activateTheme", item)}><IconCheck size={16} /><span>Activate</span></button>}
+                {kind === "plugin" && <button type="button" className={`button button-small ${active ? "button-secondary" : ""}`} disabled={working} onClick={() => void action("setPluginStatus", item, active ? "inactive" : "active")}><IconPlug size={16} /><span>{active ? "Deactivate" : "Activate"}</span></button>}
                 {repository && <a className="button button-small button-quiet" href={repository} target="_blank" rel="noreferrer"><IconExternalLink size={16} /><span>Source</span></a>}
               </div>
             </div>
           </article>;
         })}
-        {items.length === 0 && <div className="extensions-empty"><div>{tab === "theme" ? <IconPalette size={28} /> : <IconPlug size={28} />}</div><h3>No {tab}s installed yet</h3><p>Upload a portable ZIP to add one without touching the command line.</p><button type="button" className="button" onClick={() => openInstaller(tab)}><IconUpload size={17} /><span>Choose ZIP</span></button></div>}
+        {items.length === 0 && <div className="extensions-empty"><div>{kind === "theme" ? <IconPalette size={28} /> : <IconPlug size={28} />}</div><h3>No {kind}s installed yet</h3><p>Upload a portable ZIP to add one without touching the command line.</p><button type="button" className="button" onClick={() => openInstaller(kind)}><IconUpload size={17} /><span>Choose ZIP</span></button></div>}
       </div>
     </section>
 
-    <section className="extension-maker-panel"><div><span className="eyebrow">Build once. Share anywhere.</span><h2>Create your own {tab}</h2><p>Every package has a small, documented manifest and stays in its own repository. Fork the bundled Field Notes theme or the contact form plugin, remix it, and distribute the ZIP yourself.</p></div><div><a className="button button-secondary" href={tab === "theme" ? "https://github.com/kujolang/cms-field-notes-theme" : "https://github.com/kujolang/cms-contact-form"} target="_blank" rel="noreferrer"><IconDownload size={17} /><span>Open starter repository</span></a></div></section>
+    <section className="extension-maker-panel"><div><span className="eyebrow">Build once. Share anywhere.</span><h2>Create your own {kind}</h2><p>Every package has a small, documented manifest and stays in its own repository. Fork the bundled Field Notes theme or the contact form plugin, remix it, and distribute the ZIP yourself.</p></div><div><a className="button button-secondary" href={kind === "theme" ? "https://github.com/kujolang/cms-field-notes-theme" : "https://github.com/kujolang/cms-contact-form"} target="_blank" rel="noreferrer"><IconDownload size={17} /><span>Open starter repository</span></a></div></section>
 
     {installKind && <div className="extension-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) setInstallKind(null); }}>
       <section className="extension-modal" role="dialog" aria-modal="true" aria-labelledby="extension-install-title">

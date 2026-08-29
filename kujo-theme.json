@@ -2,8 +2,8 @@
   "schema": "kujo.theme/v1",
   "key": "field_notes",
   "name": "Field Notes",
-  "version": "1.0.1",
-  "description": "A responsive editorial publication and administration frontend for Kujo CMS.",
+  "version": "1.0.2",
+  "description": "A responsive editorial publication theme bundled with the Kujo CMS showcase.",
   "license": "MIT",
   "author": {
     "name": "Kujo",
@@ -15,8 +15,7 @@
   },
   "entrypoints": {
     "web": "app/layout.tsx",
-    "preview": "app/page.tsx",
-    "studio": "app/cms/page.tsx"
+    "preview": "app/page.tsx"
   },
   "templates": {
     "home": "app/page.tsx",
@@ -45,13 +44,13 @@
     "accent_color": "#e45f2b",
     "articles_per_page": 12
   },
-  "supports": ["menus", "seo", "social_sharing", "accounts", "webmcp", "studio"],
+  "supports": ["menus", "seo", "social_sharing", "webmcp"],
   "content_types": ["article", "page"],
   "menu_locations": ["header", "footer"],
   "distribution": {
     "homepage": "https://kujo.dev",
-    "repository": "https://github.com/kujolang/cms-example",
-    "package_url": "",
+    "repository": "https://github.com/kujolang/cms-field-notes-theme",
+    "package_url": "https://github.com/kujolang/cms-field-notes-theme/releases/latest/download/cms-field-notes-theme.zip",
     "integrity": ""
   }
 }

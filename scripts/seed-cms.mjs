@@ -29,6 +29,8 @@ async function request(path, options = {}) {
 }
 
 async function upsertEntry(entry) {
+  const payload = { ...entry, meta: { ...(entry.meta ?? {}), ...(entry.seo ? { seo: entry.seo } : {}) } };
+  delete payload.seo;
   let current;
   try {
     current = await request(`/v1/entries/by-slug/${entry.content_type_key}/${entry.slug}`);
@@ -36,12 +38,12 @@ async function upsertEntry(entry) {
     return request("/v1/entries", {
       method: "POST",
       headers: { "Idempotency-Key": `field-notes-${entry.content_type_key}-${entry.slug}-v2` },
-      body: JSON.stringify(entry),
+      body: JSON.stringify(payload),
     });
   }
   return request(`/v1/entries/${current.id}`, {
     method: "PATCH",
-    body: JSON.stringify(entry),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -372,4 +374,10 @@ for (const entry of savedEntries.filter((item) => item.content_type_key === "art
   });
 }
 
-console.log(`CMS seeded: ${savedEntries.length} complete entries (${savedEntries.filter((entry) => entry.content_type_key === "article").length} articles, ${savedEntries.filter((entry) => entry.content_type_key === "page").length} pages)`);
+const bundledTheme = JSON.parse(await readFile(new URL("../kujo-theme.json", import.meta.url), "utf8"));
+await request("/v1/themes/install", {
+  method: "POST",
+  body: JSON.stringify({ manifest: bundledTheme, activate: true }),
+});
+
+console.log(`CMS seeded: ${savedEntries.length} complete entries and the ${bundledTheme.name} default theme`);

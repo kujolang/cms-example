@@ -1,10 +1,10 @@
 # Field Notes Theme Package
 
-Field Notes is a portable Kujo CMS theme. Its root `kujo-theme.json` declares the public package contract, frontend entrypoints, templates, assets, settings, CMS compatibility, content types, and menu locations.
+Field Notes is the bundled default theme for this showcase, while its independent, forkable home is [`kujolang/cms-field-notes-theme`](https://github.com/kujolang/cms-field-notes-theme). The standalone repository contains only the public theme, its package manifest, build setup, assets, and ZIP packager; it does not carry CMS Studio.
 
 ## Reuse
 
-1. Copy or fork this repository.
+1. Copy or fork `cms-field-notes-theme`.
 2. Set `CMS_BASE_URL` to the target Kujo CMS delivery API.
 3. Change package identity and distribution fields in `kujo-theme.json`.
 4. Keep entrypoint, template, and asset paths aligned with the repository.
@@ -17,10 +17,10 @@ bash /path/to/cms/scripts/cms-extensions.sh theme:validate kujo-theme.json
 6. Install it with an administration token:
 
 ```bash
-CMS_API_TOKEN=... bash /path/to/cms/scripts/cms-extensions.sh theme:install kujo-theme.json active
+CMS_API_TOKEN=... bash /path/to/cms/scripts/cms-extensions.sh theme:install-zip dist/cms-field-notes-theme.zip active
 ```
 
-Installation registers the normalized manifest and settings. It does not upload, download, build, or execute the frontend repository. The deployment system remains responsible for fetching an immutable release, checking its declared integrity digest, building it in isolation, and serving it with the correct CMS URL.
+Administrators can upload the same ZIP from **CMS Studio → Themes & plugins**. The administration adapter verifies the archive and sends its manifest plus a digest-bound package receipt to the CMS. A deployment adapter remains responsible for building and serving theme code in an isolated environment.
 
 ## Customization
 

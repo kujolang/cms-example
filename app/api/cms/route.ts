@@ -116,6 +116,11 @@ export async function GET(request: Request) {
       }
       return response(await cmsRequest(`/v1/seo/entries?${upstreamQuery.toString()}`));
     }
+    if (requestUrl.searchParams.get("resource") === "ai") {
+      if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
+      const [abilities, connectors, mcp] = await Promise.all([cmsRequest("/v1/abilities"), cmsRequest("/v1/ai/connectors"), cmsRequest("/v1/ai/mcp/tools")]);
+      return response({ abilities, connectors, mcp });
+    }
     return response(await loadStudio(request, user));
   } catch (error) {
     return response(error instanceof Error ? error.message : "CMS unavailable", 502);

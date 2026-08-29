@@ -26,6 +26,7 @@ import {
   IconSearch,
   IconSettings,
   IconShieldCheck,
+  IconSparkles,
   IconTags,
   IconTrash,
   IconUpload,
@@ -34,6 +35,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import SeoWorkspace, { type SocialSharingSettings } from "./SeoWorkspace";
+import AiWorkspace from "./AiWorkspace";
 
 type Term = { id: number; name: string; slug: string };
 type Taxonomy = { id: number; taxonomy_key: string; label: string; description: string; hierarchical?: number | boolean; terms: Term[] };
@@ -197,13 +199,14 @@ function MarkdownPreview({ markdown }: { markdown: string }) {
   })}</div>;
 }
 
-type StudioView = "dashboard" | "content" | "new" | "edit" | "taxonomies" | "seo" | "users" | "userNew" | "userEdit";
+type StudioView = "dashboard" | "content" | "new" | "edit" | "taxonomies" | "seo" | "ai" | "users" | "userNew" | "userEdit";
 
 const navItems = [
   { href: "/cms", label: "Dashboard", view: "dashboard", icon: IconLayoutDashboard },
   { href: "/cms/content", label: "Content", view: "content", icon: IconFileText },
   { href: "/cms/taxonomies", label: "Taxonomies", view: "taxonomies", icon: IconTags },
   { href: "/cms/seo", label: "SEO & sharing", view: "seo", icon: IconChartDots3 },
+  { href: "/cms/ai", label: "AI & automation", view: "ai", icon: IconSparkles },
   { href: "/cms/users", label: "Users & roles", view: "users", icon: IconUsers },
 ] as const;
 
@@ -574,7 +577,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
       <aside className="studio-sidebar">
         <a className="wordmark console-wordmark" href="/cms">KUJO / CMS</a>
         <nav aria-label="CMS navigation">
-          {navItems.filter((item) => item.view !== "users" || can("manage_users")).map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <a className={active ? "active" : ""} href={item.href} key={item.href}><Icon size={19} stroke={1.7} aria-hidden="true" /><span>{item.label}</span></a>; })}
+          {navItems.filter((item) => (item.view !== "users" || can("manage_users")) && (item.view !== "ai" || can("manage_seo"))).map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <a className={active ? "active" : ""} href={item.href} key={item.href}><Icon size={19} stroke={1.7} aria-hidden="true" /><span>{item.label}</span></a>; })}
         </nav>
         <a className="view-site-link" href="/"><IconExternalLink size={17} aria-hidden="true" /><span>View publication</span></a>
         {studio?.currentUser && <div className="studio-account"><span className="account-avatar"><IconUser size={18} /></span><span><b>{studio.currentUser.name}</b><small>{studio.currentUser.role}</small></span><button type="button" onClick={() => void logout()} aria-label="Sign out"><IconLogout size={17} /></button></div>}
@@ -591,6 +594,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
           {can("manage_taxonomies") && <section className="create-taxonomy-panel"><div><p className="eyebrow">Custom structure</p><h2>Create a taxonomy</h2><p>Add a reusable classification such as Region, Audience, Format, or Product.</p></div><div className="taxonomy-form"><label><span>Name</span><input value={newTaxonomy.label} onChange={(event) => setNewTaxonomy((current) => ({ ...current, label: event.target.value, key: current.key || slugify(event.target.value).replace(/-/g, "_") }))} placeholder="Audience" /></label><label><span>API key</span><input value={newTaxonomy.key} onChange={(event) => setNewTaxonomy((current) => ({ ...current, key: slugify(event.target.value).replace(/-/g, "_") }))} placeholder="audience" /></label><label className="wide"><span>Description</span><input value={newTaxonomy.description} onChange={(event) => setNewTaxonomy((current) => ({ ...current, description: event.target.value }))} placeholder="Who this content is intended for" /></label><label className="hierarchy-toggle"><input type="checkbox" checked={newTaxonomy.hierarchical} onChange={(event) => setNewTaxonomy((current) => ({ ...current, hierarchical: event.target.checked }))} /><span>Allow parent and child terms</span></label><button className="button" type="button" onClick={() => void createTaxonomy()}><IconPlus size={18} /><span>Create taxonomy</span></button></div></section>}
           <div className="taxonomy-admin-grid">{studio?.taxonomies.map((taxonomy) => <section className="taxonomy-admin-card" key={taxonomy.id}><div className="panel-heading"><div><h2>{taxonomy.label}</h2></div><span>{taxonomy.terms.length} terms</span></div><p>{taxonomy.description || `Manage the terms available under ${taxonomy.label}.`}</p><div className="taxonomy-term-list">{taxonomy.terms.map((term) => <span key={term.id}>{term.name}<small>/{term.slug}</small></span>)}</div>{can("manage_taxonomies") && <div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder="Add terms separated by commas" /><button type="button" onClick={() => void createTerm(taxonomy)} aria-label={`Add ${taxonomy.label} terms`} title="Add terms"><IconPlus size={18} /></button></div>}</section>)}</div></>}
         {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<SeoWorkspace contentTypes={studio?.contentTypes ?? []} initialSharing={studio?.socialSharing ?? null} /></>}
+        {view === "ai" && <>{header("Agent-ready infrastructure", "AI & automation", false)}<AiWorkspace /></>}
         {view === "users" && <>{header("People, roles, and access", "Users", false)}
           <div className="users-toolbar"><label className="studio-search"><span>Search users</span><div className="search-control"><IconSearch size={18} /><input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Name, email, or username" /></div></label><a className="button" href="/cms/users/new"><IconUserPlus size={18} /> Add user</a></div>
           <section className="registration-panel"><div className="panel-heading"><div><p className="eyebrow">Registration</p><h2>New account policy</h2></div><IconSettings size={22} /></div><p>Choose whether public signups are active immediately, wait for approval, or are disabled.</p><div className="registration-modes">{([{ value: "open", label: "Open", description: "Signups become active immediately." }, { value: "approval", label: "Require approval", description: "Signups remain pending until reviewed." }, { value: "closed", label: "Closed", description: "Only administrators can create users." }] as const).map((mode) => <button type="button" className={studio?.registration?.mode === mode.value ? "active" : ""} key={mode.value} onClick={() => void saveRegistration(mode.value, studio?.registration?.default_role ?? "subscriber")}><IconShieldCheck size={19} /><span><b>{mode.label}</b><small>{mode.description}</small></span>{studio?.registration?.mode === mode.value && <IconCheck size={18} />}</button>)}</div><div className="registration-default"><span>Default signup role</span><ThemeSelect ariaLabel="Default signup role" value={studio?.registration?.default_role ?? "subscriber"} onChange={(value) => void saveRegistration(studio?.registration?.mode ?? "approval", value)} options={(studio?.roles ?? []).filter((role) => role.role_key !== "super_admin").map((role) => ({ value: role.role_key, label: role.name }))} /></div></section>

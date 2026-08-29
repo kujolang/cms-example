@@ -114,12 +114,13 @@ test("server-renders separate CMS administration routes", async () => {
     render("/cms/content/1", { headers: { cookie } }),
     render("/cms/taxonomies", { headers: { cookie } }),
     render("/cms/seo", { headers: { cookie } }),
+    render("/cms/ai", { headers: { cookie } }),
     render("/cms/users", { headers: { cookie } }),
     render("/cms/users/new", { headers: { cookie } }),
     render("/cms/users/1", { headers: { cookie } }),
   ]);
   responses.forEach((response) => assert.equal(response.status, 200));
-  const [content, create, edit, taxonomies, seo, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
+  const [content, create, edit, taxonomies, seo, ai, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
   assert.match(content, /Search by title or slug/);
   assert.match(content, /Filter by content model/);
   assert.match(content, /Filter by taxonomy term/);
@@ -132,6 +133,9 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(seo, /Pinterest/);
   assert.match(seo, /Edit X account/);
   assert.match(seo, /Find the work that matters/);
+  assert.match(ai, /Agent-ready infrastructure/);
+  assert.match(ai, /Discoverable capabilities, guarded execution/);
+  assert.match(ai, /Kujo ecosystem/);
   assert.match(users, /People, roles, and access/);
   assert.match(users, /New account policy/);
   assert.match(newUser, /Temporary password/);

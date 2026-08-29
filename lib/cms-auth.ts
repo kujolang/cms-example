@@ -19,7 +19,8 @@ export type CmsCapability =
   | "manage_taxonomies"
   | "manage_seo"
   | "upload_media"
-  | "manage_users";
+  | "manage_users"
+  | "manage_extensions";
 
 export type StudioRole = "Administrator" | "Editor" | "Author" | "Viewer" | "Subscriber";
 
@@ -47,7 +48,7 @@ type SessionPayload = { sub: string; exp: number };
 export const CMS_SESSION_COOKIE = "kujo_cms_session";
 
 const ROLE_CAPABILITIES: Record<StudioRole, CmsCapability[]> = {
-  Administrator: ["view_content", "edit_content", "publish_content", "manage_taxonomies", "manage_seo", "upload_media", "manage_users"],
+  Administrator: ["view_content", "edit_content", "publish_content", "manage_taxonomies", "manage_seo", "upload_media", "manage_users", "manage_extensions"],
   Editor: ["view_content", "edit_content", "publish_content", "manage_seo", "upload_media"],
   Author: ["view_content", "edit_content", "publish_content", "upload_media"],
   Viewer: ["view_content"],

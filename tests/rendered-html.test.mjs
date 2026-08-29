@@ -74,7 +74,7 @@ test("server-renders the CMS console, article details, and standalone pages", as
   assert.match(articleHtml, /A CMS that stays out of the frontend/);
   assert.match(articleHtml, /Keep control where it belongs/);
   assert.match(articleHtml, /Share this article/);
-  assert.match(articleHtml, /Share via pinterest/);
+  assert.match(articleHtml, /Share via email/);
   assert.match(articleHtml, /Useful ideas, delivered without the noise/);
   assert.doesNotMatch(articleHtml, /Published article/);
   assert.match(articleHtml, /property="og:image"/i);
@@ -115,12 +115,13 @@ test("server-renders separate CMS administration routes", async () => {
     render("/cms/taxonomies", { headers: { cookie } }),
     render("/cms/seo", { headers: { cookie } }),
     render("/cms/ai", { headers: { cookie } }),
+    render("/cms/extensions", { headers: { cookie } }),
     render("/cms/users", { headers: { cookie } }),
     render("/cms/users/new", { headers: { cookie } }),
     render("/cms/users/1", { headers: { cookie } }),
   ]);
   responses.forEach((response) => assert.equal(response.status, 200));
-  const [content, create, edit, taxonomies, seo, ai, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
+  const [content, create, edit, taxonomies, seo, ai, extensions, users, newUser, editUser] = await Promise.all(responses.map((response) => response.text()));
   assert.match(content, /Search by title or slug/);
   assert.match(content, /Filter by content model/);
   assert.match(content, /Filter by taxonomy term/);
@@ -136,6 +137,9 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(ai, /Agent-ready infrastructure/);
   assert.match(ai, /Discoverable capabilities, guarded execution/);
   assert.match(ai, /Kujo ecosystem/);
+  assert.match(extensions, /Themes &amp; plugins/);
+  assert.match(extensions, /Your site, without the setup tax/);
+  assert.match(extensions, /cms-field-notes-theme/);
   assert.match(users, /People, roles, and access/);
   assert.match(users, /New account policy/);
   assert.match(newUser, /Temporary password/);
@@ -235,4 +239,20 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   assert.match(seoWorkspace, /Pinterest account/);
   assert.match(seoWorkspace, /network-account-editor/);
   assert.match(cmsRoute, /\/v1\/seo\/entries\/bulk/);
+});
+
+test("ships guarded theme and plugin ZIP administration", async () => {
+  const [manager, route, inspector, manifest] = await Promise.all([
+    readFile(new URL("../app/cms/ExtensionsWorkspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/cms/extensions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/extension-package.ts", import.meta.url), "utf8"),
+    readFile(new URL("../kujo-theme.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(manager, /Install now/);
+  assert.match(manager, /Activate after installing/);
+  assert.match(route, /manage_extensions/);
+  assert.match(route, /\/v1\/extensions\/manage/);
+  assert.match(inspector, /Encrypted ZIP packages are not supported/);
+  assert.match(inspector, /SHA-256/);
+  assert.equal(JSON.parse(manifest).distribution.repository, "https://github.com/kujolang/cms-field-notes-theme");
 });

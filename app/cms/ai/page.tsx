@@ -6,6 +6,6 @@ export const metadata: Metadata = { title: "AI & automation — CMS Studio", des
 export const dynamic = "force-dynamic";
 
 export default async function AiPage() {
-  await requireCmsPage("/cms/ai");
-  return <CmsStudio view="ai" />;
+  const initialUser = await requireCmsPage("/cms/ai", "manage_extensions");
+  return <CmsStudio view="ai" initialUser={initialUser} />;
 }

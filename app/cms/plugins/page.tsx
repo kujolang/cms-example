@@ -6,6 +6,6 @@ export const metadata: Metadata = { title: "Plugins — CMS Studio", description
 export const dynamic = "force-dynamic";
 
 export default async function PluginsPage() {
-  await requireCmsPage("/cms/plugins", "manage_extensions");
-  return <CmsStudio view="plugins" />;
+  const initialUser = await requireCmsPage("/cms/plugins", "manage_extensions");
+  return <CmsStudio view="plugins" initialUser={initialUser} />;
 }

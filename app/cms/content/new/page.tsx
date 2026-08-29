@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function NewContentPage() {
-  await requireCmsPage("/cms/content/new");
-  return <CmsStudio view="new" />;
+  const initialUser = await requireCmsPage("/cms/content/new");
+  return <CmsStudio view="new" initialUser={initialUser} />;
 }

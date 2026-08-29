@@ -4,6 +4,6 @@ import { requireCmsPage } from "../../../../lib/cms-page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function NewUserPage() {
-  await requireCmsPage("/cms/users/new", "manage_users");
-  return <CmsStudio view="userNew" />;
+  const initialUser = await requireCmsPage("/cms/users/new", "manage_users");
+  return <CmsStudio view="userNew" initialUser={initialUser} />;
 }

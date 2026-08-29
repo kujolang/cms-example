@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -17,8 +18,9 @@ type Manifest = {
   name: string;
   version: string;
   description?: string;
-  author?: { name?: string };
+  author?: { name?: string; url?: string };
   distribution?: { repository?: string; homepage?: string };
+  admin?: { icon?: string };
   supports?: string[];
   capabilities?: string[];
   runtime?: string;
@@ -121,13 +123,14 @@ export default function ExtensionsWorkspace({ kind, refreshKey = 0 }: { kind: Ki
           const active = item.status === "active";
           const repository = item.manifest.distribution?.repository || item.manifest.distribution?.homepage;
           const tags = kind === "theme" ? item.manifest.supports ?? [] : item.manifest.capabilities ?? [];
+          const artwork = item.manifest.admin?.icon || (item.manifest.key === "field_notes" ? "/images/field-notes-hero.webp" : "");
           return <article className={`extension-card ${active ? "active" : ""}`} key={`${kind}-${item.id}`}>
-            <div className="extension-card-icon">{kind === "theme" ? <IconPalette size={25} /> : <IconPlug size={25} />}</div>
+            <div className={`extension-card-icon ${artwork ? "has-image" : ""}`}>{artwork ? <img src={artwork} alt={`${item.manifest.name} artwork`} /> : kind === "theme" ? <IconPalette size={25} /> : <IconPlug size={25} />}</div>
             <div className="extension-card-body">
               <div className="extension-title"><div><h3>{item.manifest.name}</h3><span>v{item.manifest.version}</span></div>{active && <em><IconCheck size={14} /> Active</em>}</div>
               <p>{item.manifest.description || `A portable ${kind} package.`}</p>
               <div className="extension-tags">{tags.slice(0, 4).map((tag) => <span key={tag}>{tag.replace(/_/g, " ")}</span>)}</div>
-              <small>By {item.manifest.author?.name || "Independent creator"} · {formatBytes(item.package?.size_bytes)}</small>
+              <small>By {item.manifest.author?.url ? <a href={item.manifest.author.url} target="_blank" rel="noreferrer">{item.manifest.author.name || "Independent creator"}</a> : item.manifest.author?.name || "Independent creator"} · {formatBytes(item.package?.size_bytes)}</small>
               <div className="extension-card-actions">
                 {kind === "theme" && !active && <button type="button" className="button button-small" disabled={working} onClick={() => void action("activateTheme", item)}><IconCheck size={16} /><span>Activate</span></button>}
                 {kind === "plugin" && <button type="button" className={`button button-small ${active ? "button-secondary" : ""}`} disabled={working} onClick={() => void action("setPluginStatus", item, active ? "inactive" : "active")}><IconPlug size={16} /><span>{active ? "Deactivate" : "Activate"}</span></button>}
@@ -140,7 +143,7 @@ export default function ExtensionsWorkspace({ kind, refreshKey = 0 }: { kind: Ki
       </div>
     </section>
 
-    <section className="extension-maker-panel"><div><span className="eyebrow">Build once. Share anywhere.</span><h2>Create your own {kind}</h2><p>Every package has a small, documented manifest and stays in its own repository. Fork the bundled Field Notes theme or the contact form plugin, remix it, and distribute the ZIP yourself.</p></div><div><a className="button button-secondary" href={kind === "theme" ? "https://github.com/kujolang/cms-field-notes-theme" : "https://github.com/kujolang/cms-contact-form"} target="_blank" rel="noreferrer"><IconDownload size={17} /><span>Open starter repository</span></a></div></section>
+    <section className="extension-maker-panel"><div><h2>Create your own {kind}</h2><p>Every package has a small, documented manifest and stays in its own repository. Fork the bundled Field Notes theme or the contact form plugin, remix it, and distribute the ZIP yourself.</p></div><div><a className="button extension-starter-button" href={kind === "theme" ? "https://github.com/kujolang/cms-field-notes-theme" : "https://github.com/kujolang/cms-contact-form"} target="_blank" rel="noreferrer"><IconDownload size={17} /><span>Open starter repository</span></a></div></section>
 
     {installKind && <div className="extension-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) setInstallKind(null); }}>
       <section className="extension-modal" role="dialog" aria-modal="true" aria-labelledby="extension-install-title">

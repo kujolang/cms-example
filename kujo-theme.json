@@ -47,6 +47,7 @@
   "supports": ["menus", "seo", "social_sharing", "webmcp"],
   "content_types": ["article", "page"],
   "menu_locations": ["header", "footer"],
+  "admin": {"icon": "/images/field-notes-hero.webp", "navigation": []},
   "distribution": {
     "homepage": "https://kujo.dev",
     "repository": "https://github.com/kujolang/cms-field-notes-theme",

@@ -65,7 +65,8 @@ type StudioUser = { id: string; name: string; email: string; username: string; f
 type StudioAuthor = Pick<StudioUser, "id" | "name" | "role">;
 type StudioRole = { id: number; role_key: string; name: string; permissions_json: string; is_system: number };
 type RegistrationSettings = { mode: "open" | "approval" | "closed"; default_role: string };
-type StudioData = { entries: Entry[]; contentTypes: ContentType[]; taxonomies: Taxonomy[]; media: Media[]; currentUser: StudioUser; authors: StudioAuthor[]; users: StudioUser[]; roles: StudioRole[]; registration: RegistrationSettings | null; socialSharing: SocialSharingSettings | null };
+type NavigationContribution = { key: string; label: string; href: string; order: number; capability: string; icon?: string; source_icon?: string; source: "theme" | "plugin"; source_key: string };
+type StudioData = { entries: Entry[]; contentTypes: ContentType[]; taxonomies: Taxonomy[]; media: Media[]; currentUser: StudioUser; authors: StudioAuthor[]; users: StudioUser[]; roles: StudioRole[]; registration: RegistrationSettings | null; socialSharing: SocialSharingSettings | null; navigation: NavigationContribution[] };
 type FormState = {
   id: number;
   contentType: string;
@@ -206,14 +207,14 @@ function MarkdownPreview({ markdown }: { markdown: string }) {
 type StudioView = "dashboard" | "content" | "new" | "edit" | "taxonomies" | "seo" | "ai" | "themes" | "plugins" | "users" | "userNew" | "userEdit";
 
 const navItems = [
-  { href: "/cms", label: "Dashboard", view: "dashboard", icon: IconLayoutDashboard },
-  { href: "/cms/content", label: "Content", view: "content", icon: IconFileText },
-  { href: "/cms/taxonomies", label: "Taxonomies", view: "taxonomies", icon: IconTags },
-  { href: "/cms/seo", label: "SEO & sharing", view: "seo", icon: IconChartDots3 },
-  { href: "/cms/ai", label: "AI & automation", view: "ai", icon: IconSparkles },
-  { href: "/cms/themes", label: "Themes", view: "themes", icon: IconPalette },
-  { href: "/cms/plugins", label: "Plugins", view: "plugins", icon: IconPlug },
-  { href: "/cms/users", label: "Users & roles", view: "users", icon: IconUsers },
+  { key: "dashboard", href: "/cms", label: "Dashboard", view: "dashboard", icon: IconLayoutDashboard, order: 100, capability: "view_content" },
+  { key: "content", href: "/cms/content", label: "Content", view: "content", icon: IconFileText, order: 200, capability: "view_content" },
+  { key: "taxonomies", href: "/cms/taxonomies", label: "Taxonomies", view: "taxonomies", icon: IconTags, order: 300, capability: "view_content" },
+  { key: "seo", href: "/cms/seo", label: "SEO & sharing", view: "seo", icon: IconChartDots3, order: 400, capability: "manage_seo" },
+  { key: "ai", href: "/cms/ai", label: "AI & automation", view: "ai", icon: IconSparkles, order: 500, capability: "manage_extensions" },
+  { key: "themes", href: "/cms/themes", label: "Themes", view: "themes", icon: IconPalette, order: 600, capability: "manage_extensions" },
+  { key: "plugins", href: "/cms/plugins", label: "Plugins", view: "plugins", icon: IconPlug, order: 700, capability: "manage_extensions" },
+  { key: "users", href: "/cms/users", label: "Users & roles", view: "users", icon: IconUsers, order: 800, capability: "manage_users" },
 ] as const;
 
 function IconButtonLabel({ icon: Icon, children }: { icon: typeof IconPlus; children: ReactNode }) {
@@ -252,7 +253,7 @@ function ThemeSelect({ value, options, onChange, disabled = false, id, ariaLabel
   </div>;
 }
 
-export default function CmsStudio({ view = "dashboard", entryId, userId }: { view?: StudioView; entryId?: number; userId?: number }) {
+export default function CmsStudio({ view = "dashboard", entryId, userId, initialUser }: { view?: StudioView; entryId?: number; userId?: number; initialUser: StudioUser }) {
   const [studio, setStudio] = useState<StudioData | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [search, setSearch] = useState("");
@@ -482,7 +483,15 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
     window.location.assign("/cms/login");
   };
 
-  const can = (capability: Capability) => studio?.currentUser.capabilities.includes(capability) ?? false;
+  const currentUser = studio?.currentUser ?? initialUser;
+  const can = (capability: Capability) => currentUser.capabilities.includes(capability);
+  const sidebarItems = useMemo(() => {
+    const contributions = studio?.navigation ?? [];
+    const orderOverrides = new Map(contributions.filter((item) => navItems.some((builtIn) => builtIn.key === item.key)).map((item) => [item.key, item.order]));
+    const builtIns = navItems.map((item) => ({ ...item, order: orderOverrides.get(item.key) ?? item.order, custom: false as const, image: "" }));
+    const custom = contributions.filter((item) => !navItems.some((builtIn) => builtIn.key === item.key)).map((item) => ({ ...item, view: null, icon: IconPlug, custom: true as const, image: item.icon || item.source_icon || "" }));
+    return [...builtIns, ...custom].filter((item) => currentUser.capabilities.includes(item.capability as Capability)).sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
+  }, [currentUser.capabilities, studio?.navigation]);
 
   const publishedCount = studio?.entries.filter((entry) => entry.status === "published").length ?? 0;
   const draftCount = studio?.entries.filter((entry) => entry.status === "draft").length ?? 0;
@@ -585,10 +594,10 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
       <aside className="studio-sidebar">
         <a className="wordmark console-wordmark" href="/cms">KUJO / CMS</a>
         <nav aria-label="CMS navigation">
-          {navItems.filter((item) => (item.view !== "users" || can("manage_users")) && (item.view !== "ai" || can("manage_seo")) && (!["themes", "plugins"].includes(item.view) || can("manage_extensions"))).map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <a className={active ? "active" : ""} href={item.href} key={item.href}><Icon size={19} stroke={1.7} aria-hidden="true" /><span>{item.label}</span></a>; })}
+          {sidebarItems.map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <a className={active ? "active" : ""} href={item.href} key={`${item.custom ? item.source_key : "core"}-${item.key}`}>{item.image ? <img className="studio-nav-image" src={item.image} alt="" /> : <Icon size={19} stroke={1.7} aria-hidden="true" />}<span>{item.label}</span></a>; })}
         </nav>
         <a className="view-site-link" href="/"><IconExternalLink size={17} aria-hidden="true" /><span>View publication</span></a>
-        {studio?.currentUser && <div className="studio-account"><span className="account-avatar"><IconUser size={18} /></span><span><b>{studio.currentUser.name}</b><small>{studio.currentUser.role}</small></span><button type="button" onClick={() => void logout()} aria-label="Sign out"><IconLogout size={17} /></button></div>}
+        <div className="studio-account"><span className="account-avatar"><IconUser size={18} /></span><span><b>{currentUser.name}</b><small>{currentUser.role}</small></span><button type="button" onClick={() => void logout()} aria-label="Sign out"><IconLogout size={17} /></button></div>
       </aside>
 
       <section className="studio-workspace">
@@ -602,9 +611,9 @@ export default function CmsStudio({ view = "dashboard", entryId, userId }: { vie
           {can("manage_taxonomies") && <section className="create-taxonomy-panel"><div><p className="eyebrow">Custom structure</p><h2>Create a taxonomy</h2><p>Add a reusable classification such as Region, Audience, Format, or Product.</p></div><div className="taxonomy-form"><label><span>Name</span><input value={newTaxonomy.label} onChange={(event) => setNewTaxonomy((current) => ({ ...current, label: event.target.value, key: current.key || slugify(event.target.value).replace(/-/g, "_") }))} placeholder="Audience" /></label><label><span>API key</span><input value={newTaxonomy.key} onChange={(event) => setNewTaxonomy((current) => ({ ...current, key: slugify(event.target.value).replace(/-/g, "_") }))} placeholder="audience" /></label><label className="wide"><span>Description</span><input value={newTaxonomy.description} onChange={(event) => setNewTaxonomy((current) => ({ ...current, description: event.target.value }))} placeholder="Who this content is intended for" /></label><label className="hierarchy-toggle"><input type="checkbox" checked={newTaxonomy.hierarchical} onChange={(event) => setNewTaxonomy((current) => ({ ...current, hierarchical: event.target.checked }))} /><span>Allow parent and child terms</span></label><button className="button" type="button" onClick={() => void createTaxonomy()}><IconPlus size={18} /><span>Create taxonomy</span></button></div></section>}
           <div className="taxonomy-admin-grid">{studio?.taxonomies.map((taxonomy) => <section className="taxonomy-admin-card" key={taxonomy.id}><div className="panel-heading"><div><h2>{taxonomy.label}</h2></div><span>{taxonomy.terms.length} terms</span></div><p>{taxonomy.description || `Manage the terms available under ${taxonomy.label}.`}</p><div className="taxonomy-term-list">{taxonomy.terms.map((term) => <span key={term.id}>{term.name}<small>/{term.slug}</small></span>)}</div>{can("manage_taxonomies") && <div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder="Add terms separated by commas" /><button type="button" onClick={() => void createTerm(taxonomy)} aria-label={`Add ${taxonomy.label} terms`} title="Add terms"><IconPlus size={18} /></button></div>}</section>)}</div></>}
         {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<SeoWorkspace contentTypes={studio?.contentTypes ?? []} initialSharing={studio?.socialSharing ?? null} /></>}
-        {view === "ai" && <>{header("", "AI & automation", <button type="button" className="button button-secondary studio-action" onClick={() => setAiRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<AiWorkspace refreshKey={aiRefreshKey} /></>}
-        {view === "themes" && <>{header("", "Themes", <button type="button" className="button button-secondary studio-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="theme" refreshKey={extensionRefreshKey} /></>}
-        {view === "plugins" && <>{header("", "Plugins", <button type="button" className="button button-secondary studio-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="plugin" refreshKey={extensionRefreshKey} /></>}
+        {view === "ai" && <>{header("", "AI & automation", <button type="button" className="studio-action refresh-action" onClick={() => setAiRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<AiWorkspace refreshKey={aiRefreshKey} /></>}
+        {view === "themes" && <>{header("", "Themes", <button type="button" className="studio-action refresh-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="theme" refreshKey={extensionRefreshKey} /></>}
+        {view === "plugins" && <>{header("", "Plugins", <button type="button" className="studio-action refresh-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="plugin" refreshKey={extensionRefreshKey} /></>}
         {view === "users" && <>{header("People, roles, and access", "Users", false)}
           <div className="users-toolbar"><label className="studio-search"><span>Search users</span><div className="search-control"><IconSearch size={18} /><input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Name, email, or username" /></div></label><a className="button" href="/cms/users/new"><IconUserPlus size={18} /> Add user</a></div>
           <section className="registration-panel"><div className="panel-heading"><div><p className="eyebrow">Registration</p><h2>New account policy</h2></div><IconSettings size={22} /></div><p>Choose whether public signups are active immediately, wait for approval, or are disabled.</p><div className="registration-modes">{([{ value: "open", label: "Open", description: "Signups become active immediately." }, { value: "approval", label: "Require approval", description: "Signups remain pending until reviewed." }, { value: "closed", label: "Closed", description: "Only administrators can create users." }] as const).map((mode) => <button type="button" className={studio?.registration?.mode === mode.value ? "active" : ""} key={mode.value} onClick={() => void saveRegistration(mode.value, studio?.registration?.default_role ?? "subscriber")}><IconShieldCheck size={19} /><span><b>{mode.label}</b><small>{mode.description}</small></span>{studio?.registration?.mode === mode.value && <IconCheck size={18} />}</button>)}</div><div className="registration-default"><span>Default signup role</span><ThemeSelect ariaLabel="Default signup role" value={studio?.registration?.default_role ?? "subscriber"} onChange={(value) => void saveRegistration(studio?.registration?.mode ?? "approval", value)} options={(studio?.roles ?? []).filter((role) => role.role_key !== "super_admin").map((role) => ({ value: role.role_key, label: role.name }))} /></div></section>

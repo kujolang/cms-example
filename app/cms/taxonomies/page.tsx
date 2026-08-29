@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function TaxonomiesPage() {
-  await requireCmsPage("/cms/taxonomies");
-  return <CmsStudio view="taxonomies" />;
+  const initialUser = await requireCmsPage("/cms/taxonomies");
+  return <CmsStudio view="taxonomies" initialUser={initialUser} />;
 }

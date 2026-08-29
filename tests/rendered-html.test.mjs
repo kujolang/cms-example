@@ -137,7 +137,8 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(seo, /Find the work that matters/);
   assert.doesNotMatch(ai, /Agent-ready infrastructure|AI control plane|Discoverable capabilities, guarded execution/i);
   assert.match(ai, /One capability system, every agent path/);
-  assert.match(ai, /WebMCP public tools/);
+  assert.match(ai, /WebMCP/);
+  assert.doesNotMatch(ai, /Registered abilities|Connectors configured|MCP-ready tools|WebMCP public tools/);
   assert.match(ai, /scripts\/cms-ai\.sh/);
   assert.match(ai, /Protected writes stay in the Abilities API/);
   assert.match(ai, /Kujo ecosystem/);
@@ -145,6 +146,7 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(themes, /Install and manage portable CMS themes/);
   assert.match(themes, /cms-field-notes-theme/);
   assert.doesNotMatch(themes, /Verified packages|Install, remix, and extend|role="tablist"/i);
+  assert.doesNotMatch(themes, /Build once\. Share anywhere/i);
   assert.match(plugins, /<h1>Plugins<\/h1>/);
   assert.match(plugins, /Install and manage portable CMS plugins/);
   assert.match(plugins, /cms-contact-form/);

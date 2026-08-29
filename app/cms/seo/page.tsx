@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function SeoPage() {
-  await requireCmsPage("/cms/seo");
-  return <CmsStudio view="seo" />;
+  const initialUser = await requireCmsPage("/cms/seo");
+  return <CmsStudio view="seo" initialUser={initialUser} />;
 }

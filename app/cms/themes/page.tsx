@@ -6,6 +6,6 @@ export const metadata: Metadata = { title: "Themes — CMS Studio", description:
 export const dynamic = "force-dynamic";
 
 export default async function ThemesPage() {
-  await requireCmsPage("/cms/themes", "manage_extensions");
-  return <CmsStudio view="themes" />;
+  const initialUser = await requireCmsPage("/cms/themes", "manage_extensions");
+  return <CmsStudio view="themes" initialUser={initialUser} />;
 }

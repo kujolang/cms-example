@@ -33,11 +33,12 @@ async function cmsRequest<T>(pathname: string, options: RequestInit = {}): Promi
 }
 
 async function loadStudio(request: Request, currentUser: StudioUser) {
-  const [entries, contentTypes, taxonomies, media] = await Promise.all([
+  const [entries, contentTypes, taxonomies, media, navigation] = await Promise.all([
     cmsRequest<{ items: unknown[] }>("/v1/entries?include=terms&limit=200&sort_by=updated_at&sort_dir=desc"),
     cmsRequest<{ items: unknown[] }>("/v1/content-types?limit=200&sort_by=type_key&sort_dir=asc"),
     cmsRequest<{ items: Array<{ id: number }> }>("/v1/taxonomies?limit=200&sort_by=taxonomy_key&sort_dir=asc"),
     cmsRequest<{ items: Array<Record<string, unknown>> }>("/v1/media?limit=200&sort_by=updated_at&sort_dir=desc"),
+    cmsRequest<{ items: Array<Record<string, unknown>> }>("/v1/extensions/navigation"),
   ]);
   const taxonomyItems = await Promise.all(taxonomies.items.map(async (taxonomy) => ({
     ...taxonomy,
@@ -60,6 +61,7 @@ async function loadStudio(request: Request, currentUser: StudioUser) {
     roles,
     registration,
     socialSharing,
+    navigation: navigation.items,
   };
 }
 
@@ -117,9 +119,9 @@ export async function GET(request: Request) {
       return response(await cmsRequest(`/v1/seo/entries?${upstreamQuery.toString()}`));
     }
     if (requestUrl.searchParams.get("resource") === "ai") {
-      if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
-      const [abilities, connectors, mcp, webmcp] = await Promise.all([cmsRequest("/v1/abilities"), cmsRequest("/v1/ai/connectors"), cmsRequest("/v1/ai/mcp/tools"), cmsRequest("/v1/webmcp")]);
-      return response({ abilities, connectors, mcp, webmcp });
+      if (!hasCapability(user, "manage_extensions")) return denied("manage_extensions");
+      const [abilities, connectors, mcp, webmcp, extensions] = await Promise.all([cmsRequest("/v1/abilities"), cmsRequest("/v1/ai/connectors"), cmsRequest("/v1/ai/mcp/tools"), cmsRequest("/v1/webmcp"), cmsRequest("/v1/extensions/ai")]);
+      return response({ abilities, connectors, mcp, webmcp, extensions });
     }
     return response(await loadStudio(request, user));
   } catch (error) {
@@ -160,6 +162,18 @@ export async function POST(request: Request) {
     }
 
     const input = await request.json() as Record<string, unknown>;
+    if (input.action === "setAbilityState") {
+      if (!hasCapability(user, "manage_extensions")) return denied("manage_extensions");
+      const name = String(input.name ?? "").trim();
+      if (!/^[a-z0-9_-]+\/[a-z0-9_-]+$/.test(name) || typeof input.enabled !== "boolean") return response("A valid ability name and enabled state are required.", 400);
+      return response(await cmsRequest(`/v1/abilities/${name}`, { method: "PATCH", body: JSON.stringify({ enabled: input.enabled }) }));
+    }
+    if (input.action === "setConnectorState") {
+      if (!hasCapability(user, "manage_extensions")) return denied("manage_extensions");
+      const key = String(input.key ?? "").trim();
+      if (!/^[a-z0-9_-]+$/.test(key) || typeof input.enabled !== "boolean") return response("A valid connector key and enabled state are required.", 400);
+      return response(await cmsRequest(`/v1/ai/connectors/${key}`, { method: "PATCH", body: JSON.stringify({ enabled: input.enabled }) }));
+    }
     if (input.action === "createTaxonomy") {
       if (!hasCapability(user, "manage_taxonomies")) return denied("manage_taxonomies");
       const taxonomyKey = String(input.taxonomy_key ?? "").trim();

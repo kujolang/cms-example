@@ -8,12 +8,19 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
 
 const { d1, r2 } = hostingConfig;
 
+const runtimeVars = Object.fromEntries(
+  ["CMS_BASE_URL", "CMS_API_TOKEN", "CMS_SESSION_SECRET"]
+    .map((name) => [name, process.env[name]] as const)
+    .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
+);
+
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  vars: runtimeVars,
   d1_databases: d1
     ? [
         {

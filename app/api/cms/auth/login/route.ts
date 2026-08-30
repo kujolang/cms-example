@@ -28,13 +28,13 @@ export async function POST(request: Request) {
     return Response.redirect(login, 303);
   }
 
-  const token = await createSessionToken(request, result.user);
+  const session = await createSessionToken(request, result.user);
   return new Response(null, {
     status: 303,
     headers: {
       Location: new URL(returnTo, request.url).toString(),
       "Cache-Control": "no-store",
-      "Set-Cookie": sessionCookie(request, token),
+      "Set-Cookie": sessionCookie(request, session.token),
     },
   });
 }

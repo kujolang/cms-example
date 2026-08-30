@@ -75,35 +75,12 @@ function randomId() {
 
 function bytesToBase64(bytes: Uint8Array) {
   let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + chunkSize, bytes.length)));
-  }
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + 0x8000, bytes.length)));
   return btoa(binary);
-}
-
-function base64ToBytes(value: string) {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
 }
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const mediaId = Number(requestUrl.searchParams.get("media") ?? 0);
-  if (Number.isInteger(mediaId) && mediaId > 0) {
-    try {
-      const media = await cmsRequest<{ mime_type: string; meta_json: string }>(`/v1/media/${mediaId}`);
-      const meta = JSON.parse(media.meta_json || "{}") as { data_base64?: string };
-      if (!meta.data_base64) return new Response("Media bytes not found", { status: 404 });
-      return new Response(base64ToBytes(meta.data_base64), {
-        headers: { "Content-Type": media.mime_type || "image/webp", "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
-      });
-    } catch {
-      return new Response("Media not found", { status: 404 });
-    }
-  }
   if (!sameOrigin(request)) return response("Cross-origin admin requests are not allowed.", 403);
   const user = await authenticateStudioRequest(request);
   if (!user) return response("Sign in to access CMS Studio.", 401);
@@ -148,17 +125,8 @@ export async function POST(request: Request) {
       if (!signature.startsWith("RIFF") || !signature.endsWith("WEBP")) return response("The uploaded file is not a valid WebP image.", 415);
       const stem = file.name.replace(/\.webp$/i, "").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "image";
       const filename = `${stem}-${randomId().slice(0, 8)}.webp`;
-      const media = await cmsRequest<{ id: number }>("/v1/media", {
-        method: "POST",
-        headers: { "Idempotency-Key": `studio-media-${filename}` },
-        body: JSON.stringify({ filename, mime_type: "image/webp", storage_path: `/api/cms?media=pending`, size_bytes: file.size, alt_text: altText, meta: { source: "cms-studio", format: "webp", data_base64: bytesToBase64(bytes) } }),
-      });
-      const publicPath = `/api/cms?media=${media.id}`;
-      await cmsRequest(`/v1/media/${media.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ storage_path: publicPath }),
-      });
-      return response({ path: publicPath, media: { id: media.id, filename, mime_type: "image/webp", storage_path: publicPath, size_bytes: file.size, alt_text: altText } });
+      const media = await cmsRequest<{ id: number; storage_path: string; mime_type: string; size_bytes: number; alt_text: string; filename: string }>("/v1/media/upload", { method: "POST", body: JSON.stringify({ filename, alt_text: altText, data_base64: bytesToBase64(bytes) }) });
+      return response({ path: media.storage_path, media });
     }
 
     const input = await request.json() as Record<string, unknown>;
@@ -173,6 +141,12 @@ export async function POST(request: Request) {
       const key = String(input.key ?? "").trim();
       if (!/^[a-z0-9_-]+$/.test(key) || typeof input.enabled !== "boolean") return response("A valid connector key and enabled state are required.", 400);
       return response(await cmsRequest(`/v1/ai/connectors/${key}`, { method: "PATCH", body: JSON.stringify({ enabled: input.enabled }) }));
+    }
+    if (input.action === "checkConnectorHealth") {
+      if (!hasCapability(user, "manage_extensions")) return denied("manage_extensions");
+      const key = String(input.key ?? "").trim();
+      if (!/^[a-z0-9_-]+$/.test(key)) return response("A valid connector key is required.", 400);
+      return response(await cmsRequest(`/v1/ai/connectors/${key}/health`, { method: "POST", body: "{}" }));
     }
     if (input.action === "createTaxonomy") {
       if (!hasCapability(user, "manage_taxonomies")) return denied("manage_taxonomies");
@@ -295,20 +269,15 @@ export async function POST(request: Request) {
     if (["published", "scheduled"].includes(String(entry.status ?? "")) && !hasCapability(user, "publish_content")) return denied("publish_content");
     let saved: { id: number };
     if (id > 0) {
-      await cmsRequest(`/v1/entries/${id}/revisions`, {
-        method: "POST",
-        headers: { "Idempotency-Key": `studio-revision-${id}-${Date.now()}` },
-        body: JSON.stringify({ note: "Snapshot before CMS Studio update" }),
-      });
-      saved = await cmsRequest(`/v1/entries/${id}`, { method: "PATCH", body: JSON.stringify(entry) });
+      const composed = await cmsRequest<{ entry: { id: number } }>(`/v1/entries/${id}/compose`, { method: "PATCH", body: JSON.stringify({ entry, term_ids: termIds, revision_note: "CMS Studio atomic save" }) });
+      saved = composed.entry;
     } else {
       saved = await cmsRequest("/v1/entries", {
         method: "POST",
         headers: { "Idempotency-Key": `studio-entry-${randomId()}` },
-        body: JSON.stringify(entry),
+        body: JSON.stringify({ ...entry, term_ids: termIds }),
       });
     }
-    await cmsRequest(`/v1/entries/${saved.id}/terms`, { method: "POST", body: JSON.stringify({ term_ids: termIds }) });
     return response({ entry: saved, studio: await loadStudio(request, user) }, id > 0 ? 200 : 201);
   } catch (error) {
     return response(error instanceof Error ? error.message : "CMS write failed", 502);

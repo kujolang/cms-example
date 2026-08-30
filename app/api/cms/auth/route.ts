@@ -3,6 +3,7 @@ import {
   authenticateStudioRequest,
   createSessionToken,
   hasCapability,
+  revokeStudioSession,
   sessionCookie,
   studioUsersFor,
 } from "../../../../lib/cms-auth";
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return json("Cross-origin authentication requests are not allowed.", 403);
   const input = await request.json() as Record<string, unknown>;
   if (input.action === "logout") {
+    await revokeStudioSession(request);
     return json({ authenticated: false }, 200, { "Set-Cookie": sessionCookie(request, "", 0) });
   }
   if (input.action === "signup") {
@@ -80,8 +82,8 @@ export async function POST(request: Request) {
       if (status === "pending") return json({ authenticated: false, pending: true, message: "Your account was created and is waiting for approval." }, 201);
       const { user } = await authenticateLocalCredentials(request, email, password);
       if (!user) return json("Account created, but sign-in could not be completed.", 502);
-      const token = await createSessionToken(request, user);
-      return json({ authenticated: true, user, created: record.id }, 201, { "Set-Cookie": sessionCookie(request, token) });
+      const session = await createSessionToken(request, user);
+      return json({ authenticated: true, user: session.user, created: record.id }, 201, { "Set-Cookie": sessionCookie(request, session.token) });
     } catch (error) {
       return json(error instanceof Error ? error.message : "Could not create the account.", 409);
     }
@@ -116,6 +118,6 @@ export async function POST(request: Request) {
   if (!result.user) {
     return json(result.error, result.status);
   }
-  const token = await createSessionToken(request, result.user);
-  return json({ authenticated: true, user: result.user }, 200, { "Set-Cookie": sessionCookie(request, token) });
+  const session = await createSessionToken(request, result.user);
+  return json({ authenticated: true, user: session.user }, 200, { "Set-Cookie": sessionCookie(request, session.token) });
 }

@@ -3,7 +3,6 @@ import {
   derivePassword,
   ensureLocalDemoUsers,
   findCmsUserByEmail,
-  getCmsUser,
   getCmsUserCredential,
   getRegistrationSettings,
   listCmsUsers,
@@ -44,16 +43,9 @@ export type StudioUser = {
   lastLoginAt: string | null;
 };
 
-type SessionPayload = { sub: string; exp: number };
 export const CMS_SESSION_COOKIE = "kujo_cms_session";
-
-const ROLE_CAPABILITIES: Record<StudioRole, CmsCapability[]> = {
-  Administrator: ["view_content", "edit_content", "publish_content", "manage_taxonomies", "manage_seo", "upload_media", "manage_users", "manage_extensions"],
-  Editor: ["view_content", "edit_content", "publish_content", "manage_seo", "upload_media"],
-  Author: ["view_content", "edit_content", "publish_content", "upload_media"],
-  Viewer: ["view_content"],
-  Subscriber: [],
-};
+const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
+const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
 
 const ROLE_NAMES: Record<string, StudioRole> = {
   super_admin: "Administrator",
@@ -95,48 +87,31 @@ export function studioUserFromRecord(record: CmsUserRecord, source: StudioUser["
     role,
     roleKey: record.role_key,
     status: record.status,
-    capabilities: ROLE_CAPABILITIES[role],
+    capabilities: [],
     source,
     createdAt: record.created_at,
     lastLoginAt: record.last_login_at,
   };
 }
 
-function base64UrlEncode(bytes: Uint8Array) {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+type IdentityUser = CmsUserRecord & { role_name: string; capabilities: CmsCapability[] };
+type IdentityEnvelope<T> = { ok: boolean; data?: T; error?: { message?: string } };
+
+function studioUserFromIdentity(record: IdentityUser, source: StudioUser["source"] = "cms"): StudioUser {
+  return { ...studioUserFromRecord(record, source), role: (ROLE_NAMES[record.role_key] ?? record.role_name ?? "Subscriber") as StudioRole, capabilities: record.capabilities };
 }
 
-function base64UrlDecode(value: string) {
-  const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "="));
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+async function identityRequest<T>(path: string, options: RequestInit = {}, session = "") {
+  const response = await fetch(new URL(path, CMS_BASE_URL), { ...options, cache: "no-store", headers: { Accept: "application/json", ...(session ? { "X-CMS-Session": session } : { Authorization: `Bearer ${CMS_API_TOKEN}` }), ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers ?? {}) } });
+  const text = await response.text(); let payload: IdentityEnvelope<T> | null = null;
+  if (text) { try { payload = JSON.parse(text) as IdentityEnvelope<T>; } catch { throw new Error(`CMS returned an invalid identity response (${response.status}).`); } }
+  if (!response.ok || !payload?.ok || payload.data === undefined) throw new Error(payload?.error?.message ?? `CMS identity request failed with ${response.status}`);
+  return payload.data;
 }
 
-function sessionSecret(request: Request) {
-  const configured = process.env.CMS_STUDIO_SESSION_SECRET;
-  if (configured && configured.length >= 32) return configured;
-  return isLoopback(new URL(request.url).hostname) ? "kujo-local-demo-session-secret-rotate-before-deployment" : "";
-}
-
-async function sign(value: string, secret: string) {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return base64UrlEncode(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value))));
-}
-
-async function signaturesMatch(left: string, right: string) {
-  const [leftBytes, rightBytes] = [new TextEncoder().encode(left), new TextEncoder().encode(right)];
-  if (leftBytes.length !== rightBytes.length) return false;
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) difference |= leftBytes[index] ^ rightBytes[index];
-  return difference === 0;
-}
-
-export async function createSessionToken(request: Request, user: StudioUser) {
-  const secret = sessionSecret(request);
-  if (!secret) throw new Error("CMS_STUDIO_SESSION_SECRET must be configured for non-local authentication.");
-  const payload = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ sub: user.id, exp: Date.now() + 8 * 60 * 60 * 1000 } satisfies SessionPayload)));
-  return `${payload}.${await sign(payload, secret)}`;
+export async function createSessionToken(_request: Request, user: StudioUser) {
+  const result = await identityRequest<{ user: IdentityUser; session: { token: string; ttl_seconds: number } }>("/v1/auth/sessions", { method: "POST", body: JSON.stringify({ user_id: Number(user.id), provider: "password", provider_subject: user.id, ttl_seconds: 28_800 }) });
+  return { token: result.session.token, user: studioUserFromIdentity(result.user) };
 }
 
 function cookieValue(request: Request, name: string) {
@@ -146,15 +121,10 @@ function cookieValue(request: Request, name: string) {
 
 async function sessionUser(request: Request): Promise<StudioUser | null> {
   const token = cookieValue(request, CMS_SESSION_COOKIE);
-  const secret = sessionSecret(request);
-  if (!token || !secret) return null;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature || !(await signaturesMatch(signature, await sign(payload, secret)))) return null;
+  if (!token) return null;
   try {
-    const parsed = JSON.parse(new TextDecoder().decode(base64UrlDecode(payload))) as SessionPayload;
-    if (!parsed.sub || parsed.exp <= Date.now()) return null;
-    const record = await getCmsUser(Number(parsed.sub));
-    return record.status === "active" ? studioUserFromRecord(record) : null;
+    const result = await identityRequest<{ authenticated: true; user: IdentityUser }>("/v1/auth/me", {}, token);
+    return studioUserFromIdentity(result.user);
   } catch {
     return null;
   }
@@ -176,11 +146,21 @@ async function platformUser(request: Request): Promise<StudioUser | null> {
     const credential = await derivePassword(crypto.randomUUID());
     record = await createCmsUser({ user_key: username, username, email, display_name: displayName, role_key: settings.default_role, status: "active", approved_by: "platform-identity", ...credential, social: {} });
   }
-  return record.status === "active" ? studioUserFromRecord(record, "platform") : null;
+  if (record.status !== "active") return null;
+  try {
+    const result = await identityRequest<{ authenticated: boolean; user: IdentityUser }>("/v1/auth/providers/resolve", { method: "POST", body: JSON.stringify({ provider: "platform", provider_subject: id, user_id: record.id }) });
+    return result.authenticated ? studioUserFromIdentity(result.user, "platform") : null;
+  } catch { return null; }
 }
 
 export async function authenticateStudioRequest(request: Request) {
   return await platformUser(request) ?? await sessionUser(request);
+}
+
+export async function revokeStudioSession(request: Request) {
+  const token = cookieValue(request, CMS_SESSION_COOKIE);
+  if (!token) return;
+  try { await identityRequest("/v1/auth/session", { method: "DELETE" }, token); } catch { /* cookie is cleared even if the session already expired */ }
 }
 
 export async function studioUsersFor(request: Request, currentUser?: StudioUser | null) {

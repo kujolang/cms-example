@@ -236,8 +236,9 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   assert.ok(assets.filter((name) => /\.webp$/i.test(name)).length >= 4);
 
   const cmsRoute = await readFile(new URL("../app/api/cms/route.ts", import.meta.url), "utf8");
+  const mediaRoute = await readFile(new URL("../app/media/[key]/route.ts", import.meta.url), "utf8");
   assert.match(cmsRoute, /key !== "meta_json"/);
-  assert.match(cmsRoute, /Cache-Control.*max-age=31536000, immutable/);
+  assert.match(mediaRoute, /Cache-Control.*max-age=31536000, immutable/);
   assert.match(cmsRoute, /Sign in to access CMS Studio/);
   const studio = await readFile(new URL("../app/cms/CmsStudio.tsx", import.meta.url), "utf8");
   const seoWorkspace = await readFile(new URL("../app/cms/SeoWorkspace.tsx", import.meta.url), "utf8");

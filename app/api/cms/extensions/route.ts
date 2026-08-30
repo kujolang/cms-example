@@ -15,6 +15,12 @@ function sameOrigin(request: Request) {
   return !origin || origin === new URL(request.url).origin;
 }
 
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + 0x8000, bytes.length)));
+  return btoa(binary);
+}
+
 async function cmsRequest<T>(pathname: string, options: RequestInit = {}) {
   const upstream = await fetch(new URL(pathname, CMS_BASE_URL), {
     ...options,
@@ -62,11 +68,9 @@ export async function POST(request: Request) {
       const requestedKind = String(form.get("kind") ?? "");
       if (requestedKind && requestedKind !== inspected.kind) return reply(`This ZIP contains a ${inspected.kind} manifest, not a ${requestedKind} manifest.`, 400);
       const activate = String(form.get("activate") ?? "false") === "true";
-      const installed = await cmsRequest(`/v1/${inspected.kind}s/install`, {
-        method: "POST",
-        body: JSON.stringify({ manifest: inspected.manifest, package: inspected.package, activate }),
-      });
-      return reply({ installed, kind: inspected.kind, package: inspected.package }, 201);
+      const installed = await cmsRequest<{ kind: "theme" | "plugin"; package: unknown }>("/v1/extensions/packages/upload", { method: "POST", body: JSON.stringify({ data_base64: bytesToBase64(new Uint8Array(await file.arrayBuffer())), activate }) });
+      if (installed.kind !== inspected.kind) throw new Error("CMS package verification returned a different extension type.");
+      return reply({ installed, kind: installed.kind, package: installed.package }, 201);
     }
 
     const input = await request.json() as Record<string, unknown>;

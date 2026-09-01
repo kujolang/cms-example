@@ -67,6 +67,15 @@ These accounts are bootstrapped into the local CMS database on first use. Passwo
 
 Agent and terminal access mirrors the SEO workspace through the backend API and CLI. With the local backend running, use `npm run cms:seo -- help`, `npm run cms:seo -- report 'readiness=needs_work&limit=25'`, or the documented update and bulk commands. The wrapper reads the local development token without exposing it to browser code.
 
+The AI & automation workspace displays each canonical Ability ID, version, and
+definition digest. Read operations execute directly after policy approval;
+mutations use the backend's two-step request-bound approval flow and keyed
+idempotency receipt. The browser console intentionally does not proxy Ability
+execution through its shared bootstrap token, because doing so would erase the
+calling agent's principal and weaken approval attribution. Use the CMS
+`scripts/cms-ai.sh approve` / `run-approved` workflow or an authenticated Agents
+SDK/MCP gateway for execution.
+
 ## Configuration
 
 The local defaults assume the sibling Kujo CMS repository is at `../cms` and the `kujo` binary is available on `PATH`.

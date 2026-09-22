@@ -100,6 +100,9 @@ Local startup generates a private bootstrap token in `.data/cms-api-token`, and 
 
 ```bash
 npm test
+npm audit
 ```
+
+The pinned `@esbuild-kit/core-utils` esbuild override in `package.json` keeps Drizzle Kit's legacy loader off an affected esbuild release. Remove it only after Drizzle Kit drops that loader or supplies a patched compatible version. The Node render tests supply an empty `cloudflare:workers` tracing namespace; the real Cloudflare runtime is unchanged.
 
 The backend repository remains the source of truth for API behavior and its release gate. This example stays in its own repository: the reusable user, role, registration, and API work belongs to the backend repository, while the publication frontend and custom administration interface remain here.

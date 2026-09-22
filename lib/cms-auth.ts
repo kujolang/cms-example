@@ -131,6 +131,21 @@ async function sessionUser(request: Request): Promise<StudioUser | null> {
 }
 
 async function platformUser(request: Request): Promise<StudioUser | null> {
+  // Identity headers are client-controlled unless a trusted ingress authenticates
+  // them. A separate, private secret must be injected by that ingress.
+  const secret = process.env.CMS_PLATFORM_IDENTITY_SECRET;
+  const supplied = request.headers.get("x-cms-platform-identity-secret");
+  if (!secret || secret.length < 32 || !supplied) return null;
+  const encoder = new TextEncoder();
+  const [expected, actual] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(secret)),
+    crypto.subtle.digest("SHA-256", encoder.encode(supplied)),
+  ]);
+  const left = new Uint8Array(expected);
+  const right = new Uint8Array(actual);
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) difference |= left[index] ^ right[index];
+  if (difference !== 0) return null;
   const id = request.headers.get("oai-authenticated-user-id");
   const email = request.headers.get("oai-authenticated-user-email")?.toLowerCase();
   if (!id || !email) return null;
@@ -171,7 +186,16 @@ export async function studioUsersFor(request: Request, currentUser?: StudioUser 
 }
 
 export async function authenticateLocalCredentials(request: Request, email: string, password: string) {
-  if (!isLoopback(new URL(request.url).hostname) && !process.env.CMS_STUDIO_ALLOW_PASSWORD_LOGIN) return { user: null, error: "Password login is not enabled for this site." };
+  if (process.env.CMS_STUDIO_ALLOW_PASSWORD_LOGIN !== "true" &&
+      (process.env.NODE_ENV !== "development" || !isLoopback(new URL(request.url).hostname))) {
+    return { user: null, error: "Password login is not enabled for this site." };
+  }
+  // A database copied from local development can still contain these known
+  // accounts; never accept their published demo passwords on a hosted site.
+  if (process.env.NODE_ENV !== "development" && process.env.CMS_STUDIO_ALLOW_DEMO_USERS !== "true" &&
+      ["admin@fieldnotes.local", "editor@fieldnotes.local"].includes(email.trim().toLowerCase())) {
+    return { user: null, error: "Demo accounts cannot sign in on this site." };
+  }
   await ensureLocalDemoUsers(request);
   const record = await findCmsUserByEmail(email);
   if (!record) return { user: null, error: "The email or password is incorrect." };

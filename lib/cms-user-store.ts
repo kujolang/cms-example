@@ -133,7 +133,7 @@ export function updateSocialSharingSettings(settings: SocialSharingSettings) {
 
 export async function ensureLocalDemoUsers(request: Request) {
   const hostname = new URL(request.url).hostname;
-  if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) return;
+  if (process.env.NODE_ENV !== "development" || !["localhost", "127.0.0.1", "::1"].includes(hostname)) return;
   const demos = [
     { user_key: "editorial-team", username: "editorial-team", email: "admin@fieldnotes.local", display_name: "Editorial Team", first_name: "Editorial", last_name: "Team", role_key: "super_admin", password: "fieldnotes-demo", bio: "Site administrator and publishing lead." },
     { user_key: "maya-chen", username: "maya-chen", email: "editor@fieldnotes.local", display_name: "Maya Chen", first_name: "Maya", last_name: "Chen", role_key: "editor", password: "editor-demo", bio: "Editor focused on practical agentic systems." },

@@ -2,6 +2,8 @@
 
 This project is a working example of the site-building flow in the Kujo CMS `HOWTO.md`.
 
+Agent-facing code map and targeted verification: [`AGENTS.md`](AGENTS.md).
+
 It includes:
 
 - A public editorial frontend at `http://localhost:3000/`
@@ -64,6 +66,10 @@ Local CMS Studio demonstration accounts:
 - Editor: `editor@fieldnotes.local` / `editor-demo`
 
 These accounts are bootstrapped into the local CMS database on first use. Password verification stays in this trusted application adapter, while CMS issues, expires, and revokes the session and returns the effective capability set. Use an appropriate production identity adapter before exposing the studio publicly.
+
+In production, password sign-in is disabled unless `CMS_STUDIO_ALLOW_PASSWORD_LOGIN=true`; the bundled demo accounts are created only in development and denied sign-in in production even if an old database still contains them. Platform identity headers are ignored unless `CMS_PLATFORM_IDENTITY_SECRET` is set to a private value of at least 32 characters and a trusted ingress injects the matching `x-cms-platform-identity-secret` header. That ingress must authenticate the user and strip all client-supplied `oai-authenticated-user-*` and `x-cms-platform-identity-secret` headers before injecting its own. Never expose the shared secret to the browser.
+
+The production-build render tests explicitly enable demo-user login for their own process with `CMS_STUDIO_ALLOW_DEMO_USERS=true`. Never set that test-only flag on a deployed server.
 
 Agent and terminal access mirrors the SEO workspace through the backend API and CLI. With the local backend running, use `npm run cms:seo -- help`, `npm run cms:seo -- report 'readiness=needs_work&limit=25'`, or the documented update and bulk commands. The wrapper reads the local development token without exposing it to browser code.
 

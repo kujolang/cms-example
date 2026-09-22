@@ -10,4 +10,5 @@ fi
 cd "${PROJECT_DIR}"
 npm run brand:check
 npm run build
-node --test tests/rendered-html.test.mjs
+CMS_STUDIO_ALLOW_PASSWORD_LOGIN=true CMS_STUDIO_ALLOW_DEMO_USERS=true node --test tests/rendered-html.test.mjs
+node --import tsx --test tests/auth-boundaries.test.mjs

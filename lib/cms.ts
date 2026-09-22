@@ -64,19 +64,19 @@ async function cmsGet<T>(path: string): Promise<T> {
   return payload.data;
 }
 
-export function getArticles() {
+export const getArticles = cache(function getArticles() {
   return cmsGet<CmsList<CmsEntry>>(
     "/v1/entries?content_type=article&include=terms&sort_by=published_at&sort_dir=desc",
   );
-}
+});
 
-export function getPages() {
+export const getPages = cache(function getPages() {
   return cmsGet<CmsList<CmsEntry>>(
     "/v1/entries?content_type=page&sort_by=title&sort_dir=asc",
   );
-}
+});
 
-export async function getArticle(slug: string) {
+export const getArticle = cache(async function getArticle(slug: string) {
   try {
     return await cmsGet<CmsEntry>(
       `/v1/entries/by-slug/article/${encodeURIComponent(slug)}`,
@@ -85,9 +85,9 @@ export async function getArticle(slug: string) {
     if (error instanceof Error && error.message.includes("404")) return null;
     throw error;
   }
-}
+});
 
-export async function getPage(slug: string) {
+export const getPage = cache(async function getPage(slug: string) {
   try {
     return await cmsGet<CmsEntry>(
       `/v1/entries/by-slug/page/${encodeURIComponent(slug)}`,
@@ -96,7 +96,7 @@ export async function getPage(slug: string) {
     if (error instanceof Error && error.message.includes("404")) return null;
     throw error;
   }
-}
+});
 
 export function getEntryMeta(entry: CmsEntry): Record<string, unknown> {
   try {
@@ -153,3 +153,4 @@ export function formatCmsDate(value: string | number | null) {
     year: "numeric",
   }).format(date);
 }
+import { cache } from "react";

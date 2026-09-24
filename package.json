@@ -6,6 +6,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "local:start": "bash scripts/start-local.sh",
+    "local:stop": "bash scripts/stop-local.sh",
     "cms:start": "bash scripts/start-cms.sh",
     "cms:seed": "node scripts/seed-cms.mjs",
     "cms:seo": "bash scripts/cms-seo.sh",

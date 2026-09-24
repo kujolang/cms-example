@@ -34,6 +34,18 @@ Install dependencies once:
 npm install
 ```
 
+Start the backend, frontend, and Studio together. This command is idempotent: if either listener is already running, it reports that instead of replacing the logs with an address-in-use error.
+
+```bash
+npm run local:start
+```
+
+Stop all three local surfaces:
+
+```bash
+npm run local:stop
+```
+
 Start the CMS backend in the first terminal:
 
 ```bash

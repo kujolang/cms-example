@@ -70,6 +70,8 @@ test("server-renders the CMS console, article details, and standalone pages", as
   assert.match(consoleHtml, /Dashboard/);
   assert.match(consoleHtml, /Human-friendly\. Agent-ready\./);
   assert.match(consoleHtml, /SEO &amp; sharing/);
+  assert.match(consoleHtml, /Hello from Kujo CMS/);
+  assert.doesNotMatch(consoleHtml, /<b>0<\/b><span>Total content<\/span>/);
   assert.match(articleHtml, /<title>Hello from Kujo CMS — Field Notes<\/title>/i);
   assert.match(articleHtml, /A CMS that stays out of the frontend/);
   assert.match(articleHtml, /Keep control where it belongs/);
@@ -135,6 +137,7 @@ test("server-renders separate CMS administration routes", async () => {
   assert.match(seo, /Pinterest/);
   assert.match(seo, /Edit X account/);
   assert.match(seo, /Find the work that matters/);
+  assert.doesNotMatch(seo, /<span>0 matching items<\/span>/);
   assert.doesNotMatch(ai, /Agent-ready infrastructure|AI control plane|Discoverable capabilities, guarded execution/i);
   assert.match(ai, /One capability system, every agent path/);
   assert.match(ai, /approval-gated write actions/);
@@ -239,8 +242,9 @@ test("ships WebP-only raster assets and keeps CMS media private from studio payl
   assert.ok(assets.filter((name) => /\.webp$/i.test(name)).length >= 4);
 
   const cmsRoute = await readFile(new URL("../app/api/cms/route.ts", import.meta.url), "utf8");
+  const studioData = await readFile(new URL("../lib/cms-studio-data.ts", import.meta.url), "utf8");
   const mediaRoute = await readFile(new URL("../app/media/[key]/route.ts", import.meta.url), "utf8");
-  assert.match(cmsRoute, /key !== "meta_json"/);
+  assert.match(studioData, /map\(\(\{ id, filename, storage_path, alt_text \}\)/);
   assert.match(mediaRoute, /Cache-Control.*max-age=31536000, immutable/);
   assert.match(cmsRoute, /Sign in to access CMS Studio/);
   const studio = await readFile(new URL("../app/cms/CmsStudio.tsx", import.meta.url), "utf8");

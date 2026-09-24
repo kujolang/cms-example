@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import CmsStudio from "./CmsStudio";
-import { requireCmsPage } from "../../lib/cms-page-auth";
+import { requireCmsStudioPage } from "../../lib/cms-page-auth";
 
 export const metadata: Metadata = {
   title: "CMS Dashboard",
@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function CmsConsole() {
-  const initialUser = await requireCmsPage("/cms");
-  return <CmsStudio view="dashboard" initialUser={initialUser} />;
+  const studio = await requireCmsStudioPage("/cms", "dashboard");
+  return <CmsStudio view="dashboard" initialStudio={studio} />;
 }

@@ -1,11 +1,8 @@
-import { authenticateStudioRequest, hasCapability, studioUsersFor, type CmsCapability, type StudioUser } from "../../../lib/cms-auth";
-import { createCmsUser, derivePassword, getRegistrationSettings, getSocialSharingSettings, listCmsRoles, updateCmsUser, updateRegistrationSettings, updateSocialSharingSettings } from "../../../lib/cms-user-store";
+import { authenticateStudioRequest, hasCapability, type CmsCapability } from "../../../lib/cms-auth";
+import { createCmsUser, derivePassword, updateCmsUser, updateRegistrationSettings, updateSocialSharingSettings } from "../../../lib/cms-user-store";
+import { cmsStudioRequest, isStudioView, loadStudioData, viewForMutation } from "../../../lib/cms-studio-data";
 
-const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
-const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
 const MAX_IMAGE_BYTES = 650 * 1024;
-
-type CmsEnvelope<T> = { ok: boolean; data?: T; error?: { message?: string } };
 
 function response(data: unknown, status = 200) {
   return Response.json({ ok: status < 400, data: status < 400 ? data : undefined, error: status >= 400 ? data : undefined }, { status, headers: { "Cache-Control": "no-store" } });
@@ -16,54 +13,7 @@ function sameOrigin(request: Request) {
   return !origin || origin === new URL(request.url).origin;
 }
 
-async function cmsRequest<T>(pathname: string, options: RequestInit = {}): Promise<T> {
-  const upstream = await fetch(new URL(pathname, CMS_BASE_URL), {
-    ...options,
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${CMS_API_TOKEN}`,
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.headers ?? {}),
-    },
-  });
-  const payload = (await upstream.json()) as CmsEnvelope<T>;
-  if (!upstream.ok || !payload.ok || payload.data === undefined) throw new Error(payload.error?.message ?? `CMS request failed with ${upstream.status}`);
-  return payload.data;
-}
-
-async function loadStudio(request: Request, currentUser: StudioUser) {
-  const [entries, contentTypes, taxonomies, media, navigation] = await Promise.all([
-    cmsRequest<{ items: unknown[] }>("/v1/entries?include=terms&limit=200&sort_by=updated_at&sort_dir=desc"),
-    cmsRequest<{ items: unknown[] }>("/v1/content-types?limit=200&sort_by=type_key&sort_dir=asc"),
-    cmsRequest<{ items: Array<{ id: number }> }>("/v1/taxonomies?limit=200&sort_by=taxonomy_key&sort_dir=asc"),
-    cmsRequest<{ items: Array<Record<string, unknown>> }>("/v1/media?limit=200&sort_by=updated_at&sort_dir=desc"),
-    cmsRequest<{ items: Array<Record<string, unknown>> }>("/v1/extensions/navigation"),
-  ]);
-  const taxonomyItems = await Promise.all(taxonomies.items.map(async (taxonomy) => ({
-    ...taxonomy,
-    terms: (await cmsRequest<{ items: unknown[] }>(`/v1/taxonomies/${taxonomy.id}/terms?limit=200&sort_by=name&sort_dir=asc`)).items,
-  })));
-  const mediaItems = media.items.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== "meta_json")));
-  const configuredUsers = await studioUsersFor(request, currentUser);
-  const [roles, registration] = hasCapability(currentUser, "manage_users")
-    ? await Promise.all([listCmsRoles(), getRegistrationSettings()])
-    : [[], null];
-  const socialSharing = hasCapability(currentUser, "manage_seo") ? await getSocialSharingSettings() : null;
-  return {
-    entries: entries.items,
-    contentTypes: contentTypes.items,
-    taxonomies: taxonomyItems,
-    media: mediaItems,
-    currentUser,
-    authors: configuredUsers.filter((user) => user.status === "active" && ["Administrator", "Editor", "Author"].includes(user.role)).map(({ id, name, role }) => ({ id, name, role })),
-    users: hasCapability(currentUser, "manage_users") ? configuredUsers : [],
-    roles,
-    registration,
-    socialSharing,
-    navigation: navigation.items,
-  };
-}
+const cmsRequest = cmsStudioRequest;
 
 function denied(capability: CmsCapability) {
   return response(`Your account does not have the ${capability.replace(/_/g, " ")} capability.`, 403);
@@ -100,7 +50,8 @@ export async function GET(request: Request) {
       const [abilities, connectors, mcp, webmcp, extensions] = await Promise.all([cmsRequest("/v1/abilities"), cmsRequest("/v1/ai/connectors"), cmsRequest("/v1/ai/mcp/tools"), cmsRequest("/v1/webmcp"), cmsRequest("/v1/extensions/ai")]);
       return response({ abilities, connectors, mcp, webmcp, extensions });
     }
-    return response(await loadStudio(request, user));
+    const requestedView = requestUrl.searchParams.get("view");
+    return response(await loadStudioData(request, user, isStudioView(requestedView) ? requestedView : "dashboard"));
   } catch (error) {
     return response(error instanceof Error ? error.message : "CMS unavailable", 502);
   }
@@ -158,7 +109,7 @@ export async function POST(request: Request) {
         headers: { "Idempotency-Key": `studio-taxonomy-${taxonomyKey}` },
         body: JSON.stringify({ taxonomy_key: taxonomyKey, label, description: String(input.description ?? ""), hierarchical: Boolean(input.hierarchical) }),
       });
-      return response({ taxonomy, studio: await loadStudio(request, user) }, 201);
+      return response({ taxonomy, studio: await loadStudioData(request, user, viewForMutation(input.action)) }, 201);
     }
     if (input.action === "createTerm") {
       if (!hasCapability(user, "manage_taxonomies")) return denied("manage_taxonomies");
@@ -171,7 +122,7 @@ export async function POST(request: Request) {
         headers: { "Idempotency-Key": `studio-term-${taxonomyId}-${slug}` },
         body: JSON.stringify({ name, slug, description: String(input.description ?? "") }),
       });
-      return response({ term, studio: await loadStudio(request, user) }, 201);
+      return response({ term, studio: await loadStudioData(request, user, viewForMutation(input.action)) }, 201);
     }
     if (input.action === "createTerms") {
       if (!hasCapability(user, "manage_taxonomies")) return denied("manage_taxonomies");
@@ -184,7 +135,7 @@ export async function POST(request: Request) {
         if (slug.length < 2) continue;
         terms.push(await cmsRequest(`/v1/taxonomies/${taxonomyId}/terms`, { method: "POST", headers: { "Idempotency-Key": `studio-term-${taxonomyId}-${slug}` }, body: JSON.stringify({ name, slug, description: "" }) }));
       }
-      return response({ terms, studio: await loadStudio(request, user) }, 201);
+      return response({ terms, studio: await loadStudioData(request, user, viewForMutation(input.action)) }, 201);
     }
     if (input.action === "createUser") {
       if (!hasCapability(user, "manage_users")) return denied("manage_users");
@@ -209,7 +160,7 @@ export async function POST(request: Request) {
         approved_by: user.email,
         ...credential,
       });
-      return response({ user: createdUser, studio: await loadStudio(request, user) }, 201);
+      return response({ user: createdUser, studio: await loadStudioData(request, user, viewForMutation(input.action)) }, 201);
     }
     if (input.action === "updateUser") {
       if (!hasCapability(user, "manage_users")) return denied("manage_users");
@@ -235,17 +186,17 @@ export async function POST(request: Request) {
         Object.assign(changes, await derivePassword(password));
       }
       const updatedUser = await updateCmsUser(id, changes);
-      return response({ user: updatedUser, studio: await loadStudio(request, user) });
+      return response({ user: updatedUser, studio: await loadStudioData(request, user, viewForMutation(input.action)) });
     }
     if (input.action === "updateRegistration") {
       if (!hasCapability(user, "manage_users")) return denied("manage_users");
       const registration = await updateRegistrationSettings({ mode: String(input.mode ?? "approval") as "open" | "approval" | "closed", default_role: String(input.default_role ?? "subscriber") });
-      return response({ registration, studio: await loadStudio(request, user) });
+      return response({ registration, studio: await loadStudioData(request, user, viewForMutation(input.action)) });
     }
     if (input.action === "updateSocialSharing") {
       if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
       const socialSharing = await updateSocialSharingSettings({ networks: Array.isArray(input.networks) ? input.networks.map(String) : [], content_types: Array.isArray(input.content_types) ? input.content_types.map(String) : [], accounts: typeof input.accounts === "object" && input.accounts ? Object.fromEntries(Object.entries(input.accounts as Record<string, unknown>).map(([key, value]) => [key, String(value)])) : {} });
-      return response({ socialSharing, studio: await loadStudio(request, user) });
+      return response({ socialSharing, studio: await loadStudioData(request, user, viewForMutation(input.action)) });
     }
     if (input.action === "updateSeo") {
       if (!hasCapability(user, "manage_seo")) return denied("manage_seo");
@@ -278,7 +229,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({ ...entry, term_ids: termIds }),
       });
     }
-    return response({ entry: saved, studio: await loadStudio(request, user) }, id > 0 ? 200 : 201);
+    return response({ entry: saved, studio: await loadStudioData(request, user, "edit") }, id > 0 ? 200 : 201);
   } catch (error) {
     return response(error instanceof Error ? error.message : "CMS write failed", 502);
   }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   IconAlertTriangle,
   IconBrandBluesky,
@@ -21,11 +22,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
-type ContentType = { type_key: string; label: string };
-export type SocialSharingSettings = { networks: string[]; content_types: string[]; accounts: Record<string, string> };
-type SeoFields = { title: string; description: string; focus_keyword: string; canonical_url: string; og_image_url: string; social_title: string; social_description: string; schema_type: string; robots: string; title_length: number; description_length: number };
-type SeoItem = { id: number; content_type_key: string; title: string; slug: string; status: string; author_id: string; updated_at: string | number; word_count: number; term_count: number; url: string; readiness: "ready" | "needs_work"; score: number; issues: string[]; seo: SeoFields };
-type SeoReport = { items: SeoItem[]; total: number; limit: number; offset: number; summary: { total: number; missing_titles: number; missing_descriptions: number; missing_keywords: number; missing_social_images: number; missing_terms: number } };
+import type { ContentType, SeoItem, SeoReport, SocialSharingSettings } from "../../lib/cms-studio-data";
 
 const emptyReport: SeoReport = { items: [], total: 0, limit: 25, offset: 0, summary: { total: 0, missing_titles: 0, missing_descriptions: 0, missing_keywords: 0, missing_social_images: 0, missing_terms: 0 } };
 const networkOptions = [
@@ -70,8 +67,8 @@ function editState(item: SeoItem) {
   return { title: item.seo.title, description: item.seo.description, focus_keyword: item.seo.focus_keyword, canonical_url: item.seo.canonical_url, og_image_url: item.seo.og_image_url, social_title: item.seo.social_title, social_description: item.seo.social_description, schema_type: item.seo.schema_type || (item.content_type_key === "page" ? "WebPage" : "Article"), robots: item.seo.robots || "index,follow" };
 }
 
-export default function SeoWorkspace({ contentTypes, initialSharing }: { contentTypes: ContentType[]; initialSharing: SocialSharingSettings | null }) {
-  const [report, setReport] = useState(emptyReport);
+export default function SeoWorkspace({ contentTypes, initialSharing, initialReport }: { contentTypes: ContentType[]; initialSharing: SocialSharingSettings | null; initialReport: SeoReport | null }) {
+  const [report, setReport] = useState(initialReport ?? emptyReport);
   const [filters, setFilters] = useState({ q: "", content_type: "", status: "", readiness: "", issue: "" });
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);
@@ -89,6 +86,7 @@ export default function SeoWorkspace({ contentTypes, initialSharing }: { content
     Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
     return params.toString();
   }, [filters, offset]);
+  const hydratedQuery = useRef(initialReport ? query : "");
 
   const loadReport = async () => {
     try {
@@ -101,6 +99,10 @@ export default function SeoWorkspace({ contentTypes, initialSharing }: { content
   };
 
   useEffect(() => {
+    if (hydratedQuery.current === query) {
+      hydratedQuery.current = "";
+      return;
+    }
     const timer = window.setTimeout(() => { void loadReport(); }, 180);
     return () => window.clearTimeout(timer);
     // query is the complete request identity; loadReport intentionally remains local.
@@ -175,6 +177,6 @@ export default function SeoWorkspace({ contentTypes, initialSharing }: { content
       <footer className="seo-pagination"><span>Page {currentPage} of {totalPages}</span><div><button type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - report.limit))}><IconChevronLeft size={17} /> Previous</button><button type="button" disabled={offset + report.limit >= report.total} onClick={() => setOffset(offset + report.limit)}>Next <IconChevronRight size={17} /></button></div></footer>
     </section>
 
-    {editing && editForm && <div className="seo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditing(null); setEditForm(null); } }}><section className="seo-modal" role="dialog" aria-modal="true" aria-labelledby="seo-modal-title"><header><div><p className="eyebrow">Quick edit</p><h2 id="seo-modal-title">{editing.title}</h2><span>/{editing.slug}</span></div><button type="button" aria-label="Close quick editor" onClick={() => { setEditing(null); setEditForm(null); }}><IconX size={20} /></button></header><div className="seo-modal-fields"><label className="wide"><span>Search title <small>{editForm.title.length}/60</small></span><input value={editForm.title} maxLength={70} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label><label className="wide"><span>Meta description <small>{editForm.description.length}/160</small></span><textarea value={editForm.description} maxLength={180} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} /></label><label><span>Focus keyword</span><input value={editForm.focus_keyword} onChange={(event) => setEditForm({ ...editForm, focus_keyword: event.target.value })} /></label><label><span>Schema type</span><input value={editForm.schema_type} onChange={(event) => setEditForm({ ...editForm, schema_type: event.target.value })} /></label><label className="wide"><span>Canonical URL</span><input type="url" value={editForm.canonical_url} onChange={(event) => setEditForm({ ...editForm, canonical_url: event.target.value })} /></label><label className="wide"><span>Social image URL</span><input type="url" value={editForm.og_image_url} onChange={(event) => setEditForm({ ...editForm, og_image_url: event.target.value })} /></label><label><span>Social title</span><input value={editForm.social_title} onChange={(event) => setEditForm({ ...editForm, social_title: event.target.value })} /></label><label><span>Robots</span><input value={editForm.robots} onChange={(event) => setEditForm({ ...editForm, robots: event.target.value })} /></label><label className="wide"><span>Social description</span><textarea value={editForm.social_description} onChange={(event) => setEditForm({ ...editForm, social_description: event.target.value })} /></label></div><footer><a href={`/cms/content/${editing.id}`}>Open full editor</a><button className="button" type="button" disabled={busy} onClick={() => void saveQuickEdit()}><IconCheck size={17} />{busy ? "Saving…" : "Save SEO changes"}</button></footer></section></div>}
+    {editing && editForm && <div className="seo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditing(null); setEditForm(null); } }}><section className="seo-modal" role="dialog" aria-modal="true" aria-labelledby="seo-modal-title"><header><div><p className="eyebrow">Quick edit</p><h2 id="seo-modal-title">{editing.title}</h2><span>/{editing.slug}</span></div><button type="button" aria-label="Close quick editor" onClick={() => { setEditing(null); setEditForm(null); }}><IconX size={20} /></button></header><div className="seo-modal-fields"><label className="wide"><span>Search title <small>{editForm.title.length}/60</small></span><input value={editForm.title} maxLength={70} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label><label className="wide"><span>Meta description <small>{editForm.description.length}/160</small></span><textarea value={editForm.description} maxLength={180} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} /></label><label><span>Focus keyword</span><input value={editForm.focus_keyword} onChange={(event) => setEditForm({ ...editForm, focus_keyword: event.target.value })} /></label><label><span>Schema type</span><input value={editForm.schema_type} onChange={(event) => setEditForm({ ...editForm, schema_type: event.target.value })} /></label><label className="wide"><span>Canonical URL</span><input type="url" value={editForm.canonical_url} onChange={(event) => setEditForm({ ...editForm, canonical_url: event.target.value })} /></label><label className="wide"><span>Social image URL</span><input type="url" value={editForm.og_image_url} onChange={(event) => setEditForm({ ...editForm, og_image_url: event.target.value })} /></label><label><span>Social title</span><input value={editForm.social_title} onChange={(event) => setEditForm({ ...editForm, social_title: event.target.value })} /></label><label><span>Robots</span><input value={editForm.robots} onChange={(event) => setEditForm({ ...editForm, robots: event.target.value })} /></label><label className="wide"><span>Social description</span><textarea value={editForm.social_description} onChange={(event) => setEditForm({ ...editForm, social_description: event.target.value })} /></label></div><footer><Link href={`/cms/content/${editing.id}`}>Open full editor</Link><button className="button" type="button" disabled={busy} onClick={() => void saveQuickEdit()}><IconCheck size={17} />{busy ? "Saving…" : "Save SEO changes"}</button></footer></section></div>}
   </>;
 }

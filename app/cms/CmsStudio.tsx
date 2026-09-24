@@ -2,6 +2,8 @@
 /* eslint-disable @next/next/no-html-link-for-pages, @next/next/no-img-element */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   IconArticle,
   IconBold,
@@ -37,36 +39,10 @@ import {
   IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
-import SeoWorkspace, { type SocialSharingSettings } from "./SeoWorkspace";
+import SeoWorkspace from "./SeoWorkspace";
 import AiWorkspace from "./AiWorkspace";
 import ExtensionsWorkspace from "./ExtensionsWorkspace";
-
-type Term = { id: number; name: string; slug: string };
-type Taxonomy = { id: number; taxonomy_key: string; label: string; description: string; hierarchical?: number | boolean; terms: Term[] };
-type ContentType = { id: number; type_key: string; label: string; singular_label: string; description: string };
-type Entry = {
-  id: number;
-  content_type_key: string;
-  title: string;
-  slug: string;
-  status: string;
-  excerpt: string;
-  body: string;
-  meta_json: string;
-  author_id: string;
-  terms?: Term[];
-  updated_at: string | number;
-  published_at?: string | number | null;
-  unpublish_at?: string | number | null;
-};
-type Media = { id: number; filename: string; storage_path: string; alt_text: string };
-type Capability = "view_content" | "edit_content" | "publish_content" | "manage_taxonomies" | "manage_seo" | "upload_media" | "manage_users" | "manage_extensions";
-type StudioUser = { id: string; name: string; email: string; username: string; firstName: string; lastName: string; bio: string; websiteUrl: string; avatarUrl: string; social: Record<string, string>; role: string; roleKey: string; status: "pending" | "active" | "suspended" | "rejected"; capabilities: Capability[]; source: "cms" | "platform"; createdAt: string; lastLoginAt: string | null };
-type StudioAuthor = Pick<StudioUser, "id" | "name" | "role">;
-type StudioRole = { id: number; role_key: string; name: string; permissions_json: string; is_system: number };
-type RegistrationSettings = { mode: "open" | "approval" | "closed"; default_role: string };
-type NavigationContribution = { key: string; label: string; href: string; order: number; capability: string; icon?: string; source_icon?: string; source: "theme" | "plugin"; source_key: string };
-type StudioData = { entries: Entry[]; contentTypes: ContentType[]; taxonomies: Taxonomy[]; media: Media[]; currentUser: StudioUser; authors: StudioAuthor[]; users: StudioUser[]; roles: StudioRole[]; registration: RegistrationSettings | null; socialSharing: SocialSharingSettings | null; navigation: NavigationContribution[] };
+import type { CmsCapability as Capability, Entry, RegistrationSettings, StudioData, StudioView, Taxonomy } from "../../lib/cms-studio-data";
 type FormState = {
   id: number;
   contentType: string;
@@ -158,8 +134,8 @@ function toDateTimeLocal(value: string | number | null | undefined) {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 16);
 }
 
-async function request<T>(options?: RequestInit): Promise<T> {
-  const response = await fetch("/api/cms", options);
+async function request<T>(options?: RequestInit, query = ""): Promise<T> {
+  const response = await fetch(`/api/cms${query}`, options);
   const payload = await response.json() as { ok: boolean; data?: T; error?: string };
   if (response.status === 401) {
     window.location.assign(`/cms/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
@@ -203,8 +179,6 @@ function MarkdownPreview({ markdown }: { markdown: string }) {
     return <p key={index}>{block}</p>;
   })}</div>;
 }
-
-type StudioView = "dashboard" | "content" | "new" | "edit" | "taxonomies" | "seo" | "ai" | "themes" | "plugins" | "users" | "userNew" | "userEdit";
 
 const navItems = [
   { key: "dashboard", href: "/cms", label: "Dashboard", view: "dashboard", icon: IconLayoutDashboard, order: 100, capability: "view_content" },
@@ -253,9 +227,16 @@ function ThemeSelect({ value, options, onChange, disabled = false, id, ariaLabel
   </div>;
 }
 
-export default function CmsStudio({ view = "dashboard", entryId, userId, initialUser }: { view?: StudioView; entryId?: number; userId?: number; initialUser: StudioUser }) {
-  const [studio, setStudio] = useState<StudioData | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm());
+export default function CmsStudio({ view = "dashboard", entryId, userId, initialStudio }: { view?: StudioView; entryId?: number; userId?: number; initialStudio: StudioData }) {
+  const router = useRouter();
+  const [studio, setStudio] = useState<StudioData>(initialStudio);
+  const [form, setForm] = useState<FormState>(() => {
+    if (view === "edit") {
+      const selected = initialStudio.entries.find((entry) => entry.id === entryId);
+      if (selected) return formFromEntry(selected);
+    }
+    return { ...emptyForm(initialStudio.contentTypes[0]?.type_key ?? "article"), author: initialStudio.currentUser.id };
+  });
   const [search, setSearch] = useState("");
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
   const [notice, setNotice] = useState("");
@@ -269,42 +250,23 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
   const [termFilter, setTermFilter] = useState("all");
   const [aiRefreshKey, setAiRefreshKey] = useState(0);
   const [extensionRefreshKey, setExtensionRefreshKey] = useState(0);
-  const [userForm, setUserForm] = useState({ id: 0, display_name: "", username: "", email: "", first_name: "", last_name: "", bio: "", website_url: "", avatar_url: "", x: "", linkedin: "", github: "", role_key: "subscriber", status: "active", password: "" });
+  const [userForm, setUserForm] = useState(() => {
+    const selectedUser = view === "userEdit" ? initialStudio.users.find((user) => Number(user.id) === userId) : undefined;
+    return selectedUser
+      ? { id: Number(selectedUser.id), display_name: selectedUser.name, username: selectedUser.username, email: selectedUser.email, first_name: selectedUser.firstName, last_name: selectedUser.lastName, bio: selectedUser.bio, website_url: selectedUser.websiteUrl, avatar_url: selectedUser.avatarUrl, x: selectedUser.social.x ?? "", linkedin: selectedUser.social.linkedin ?? "", github: selectedUser.social.github ?? "", role_key: selectedUser.roleKey, status: selectedUser.status, password: "" }
+      : { id: 0, display_name: "", username: "", email: "", first_name: "", last_name: "", bio: "", website_url: "", avatar_url: "", x: "", linkedin: "", github: "", role_key: initialStudio.registration?.default_role ?? "subscriber", status: "active", password: "" };
+  });
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const loadStudio = async () => {
     try {
-      const data = await request<StudioData>();
+      const data = await request<StudioData>({ cache: "no-store" }, `?view=${view}`);
       setStudio(data);
       setNotice("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "CMS unavailable");
     }
   };
-
-  useEffect(() => {
-    let active = true;
-    void request<StudioData>().then((data) => {
-      if (!active) return;
-      setStudio(data);
-      setNotice("");
-      if (view === "new") setForm({ ...emptyForm(data.contentTypes[0]?.type_key ?? "article"), author: data.currentUser.id });
-      if (view === "edit") {
-        const selected = data.entries.find((entry) => entry.id === entryId);
-        if (selected) setForm(formFromEntry(selected));
-        else setNotice("That content item could not be found.");
-      }
-      if (view === "userNew") setUserForm((current) => ({ ...current, role_key: data.registration?.default_role ?? "subscriber" }));
-      if (view === "userEdit") {
-        const selectedUser = data.users.find((user) => Number(user.id) === userId);
-        if (selectedUser) setUserForm({ id: Number(selectedUser.id), display_name: selectedUser.name, username: selectedUser.username, email: selectedUser.email, first_name: selectedUser.firstName, last_name: selectedUser.lastName, bio: selectedUser.bio, website_url: selectedUser.websiteUrl, avatar_url: selectedUser.avatarUrl, x: selectedUser.social.x ?? "", linkedin: selectedUser.social.linkedin ?? "", github: selectedUser.social.github ?? "", role_key: selectedUser.roleKey, status: selectedUser.status, password: "" });
-        else setNotice("That user could not be found.");
-      }
-    }).catch((error) => {
-      if (active) setNotice(error instanceof Error ? error.message : "CMS unavailable");
-    });
-    return () => { active = false; };
-  }, [entryId, userId, view]);
 
   const filteredEntries = useMemo(() => (studio?.entries ?? []).filter((entry) => {
     const query = search.trim().toLowerCase();
@@ -391,7 +353,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
         setForm(formFromEntry(saved));
       }
       setNotice(form.id ? "Saved. A revision snapshot was created first." : "Created and saved to Kujo CMS.");
-      if (!form.id) window.location.assign(`/cms/content/${result.entry.id}`);
+      if (!form.id) router.replace(`/cms/content/${result.entry.id}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Save failed");
     } finally {
@@ -465,7 +427,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
       const result = await request<{ user: { id: number }; studio: StudioData }>({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: userForm.id ? "updateUser" : "createUser", ...userForm, social: { x: userForm.x, linkedin: userForm.linkedin, github: userForm.github } }) });
       setStudio(result.studio);
       setNotice(userForm.id ? "User details, role, and status saved." : "User created and ready to manage.");
-      if (!userForm.id) window.location.assign(`/cms/users/${result.user.id}`);
+      if (!userForm.id) router.replace(`/cms/users/${result.user.id}`);
       else setUserForm((current) => ({ ...current, password: "" }));
     } catch (error) { setNotice(error instanceof Error ? error.message : "User could not be saved."); } finally { setSaving(false); }
   };
@@ -483,7 +445,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
     window.location.assign("/cms/login");
   };
 
-  const currentUser = studio?.currentUser ?? initialUser;
+  const currentUser = studio.currentUser;
   const can = (capability: Capability) => currentUser.capabilities.includes(capability);
   const sidebarItems = useMemo(() => {
     const contributions = studio?.navigation ?? [];
@@ -504,7 +466,7 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
   const header = (eyebrow: string, title: string, action: boolean | ReactNode = true) => <>
     <header className="studio-topbar">
       <div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1></div>
-      {typeof action === "boolean" ? action && can("edit_content") && <a className="button studio-action" href="/cms/content/new"><IconButtonLabel icon={IconPlus}>New content</IconButtonLabel></a> : action}
+      {typeof action === "boolean" ? action && can("edit_content") && <Link prefetch={false} onPointerEnter={() => router.prefetch("/cms/content/new")} className="button studio-action" href="/cms/content/new"><IconButtonLabel icon={IconPlus}>New content</IconButtonLabel></Link> : action}
     </header>
     {notice && <p className="studio-notice" aria-live="polite">{notice}</p>}
   </>;
@@ -517,13 +479,13 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
     </div>}
     <div className="content-table" role="table" aria-label="Content">
       <div className="content-table-head" role="row"><span>Title</span><span>Model</span><span>Status</span><span>Updated</span><span /></div>
-      {(compact ? studio?.entries.slice(0, 5) ?? [] : filteredEntries).map((entry) => <a className="content-table-row" role="row" href={`/cms/content/${entry.id}`} key={entry.id}>
+      {(compact ? studio.entries.slice(0, 5) : filteredEntries).map((entry) => <Link prefetch={false} onPointerEnter={() => router.prefetch(`/cms/content/${entry.id}`)} className="content-table-row" role="row" href={`/cms/content/${entry.id}`} key={entry.id}>
         <span className="content-title"><b>{entry.title}</b><small>/{entry.slug}</small></span>
         <span className="model-cell">{entry.content_type_key === "article" ? <IconArticle size={17} aria-hidden="true" /> : <IconFileDescription size={17} aria-hidden="true" />}{entry.content_type_key}</span>
         <span><i className={`status-badge ${entry.status}`}>{entry.status}</i></span>
         <span>{new Date(Number(entry.updated_at) * (Number(entry.updated_at) < 1_000_000_000_000 ? 1000 : 1)).toLocaleDateString()}</span>
         <IconChevronRight size={18} aria-hidden="true" />
-      </a>)}
+      </Link>)}
     </div>
   </div>;
 
@@ -592,9 +554,9 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
   return (
     <main className="studio-shell">
       <aside className="studio-sidebar">
-        <a className="wordmark console-wordmark" href="/cms">KUJO / CMS</a>
+        <Link prefetch={false} onPointerEnter={() => router.prefetch("/cms")} className="wordmark console-wordmark" href="/cms">KUJO / CMS</Link>
         <nav aria-label="CMS navigation">
-          {sidebarItems.map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <a className={active ? "active" : ""} href={item.href} key={`${item.custom ? item.source_key : "core"}-${item.key}`}>{item.image ? <img className="studio-nav-image" src={item.image} alt="" /> : <Icon size={19} stroke={1.7} aria-hidden="true" />}<span>{item.label}</span></a>; })}
+          {sidebarItems.map((item) => { const Icon = item.icon; const active = item.view === view || (item.view === "content" && (view === "new" || view === "edit")) || (item.view === "users" && (view === "userNew" || view === "userEdit")); return <Link prefetch={false} onPointerEnter={() => router.prefetch(item.href)} className={active ? "active" : ""} href={item.href} key={`${item.custom ? item.source_key : "core"}-${item.key}`}>{item.image ? <img className="studio-nav-image" src={item.image} alt="" /> : <Icon size={19} stroke={1.7} aria-hidden="true" />}<span>{item.label}</span></Link>; })}
         </nav>
         <a className="view-site-link" href="/"><IconExternalLink size={17} aria-hidden="true" /><span>View publication</span></a>
         <div className="studio-account"><span className="account-avatar"><IconUser size={18} /></span><span><b>{currentUser.name}</b><small>{currentUser.role}</small></span><button type="button" onClick={() => void logout()} aria-label="Sign out"><IconLogout size={17} /></button></div>
@@ -603,23 +565,23 @@ export default function CmsStudio({ view = "dashboard", entryId, userId, initial
       <section className="studio-workspace">
         {view === "dashboard" && <>{header("Human-friendly. Agent-ready.", "Dashboard")}<div className="dashboard-grid">
           <section className="dashboard-metrics"><article><IconFileText size={22} /><b>{studio?.entries.length ?? 0}</b><span>Total content</span></article><article><IconExternalLink size={22} /><b>{publishedCount}</b><span>Published</span></article><article><IconEdit size={22} /><b>{draftCount}</b><span>Drafts</span></article><article><IconChartDots3 size={22} /><b>{seoReadyCount}</b><span>SEO ready</span></article></section>
-          <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">Recently updated</p><h2>Content</h2></div><a href="/cms/content">View all <IconChevronRight size={17} /></a></div>{contentList(true)}</section>
+          <section className="dashboard-panel"><div className="panel-heading"><div><p className="eyebrow">Recently updated</p><h2>Content</h2></div><Link href="/cms/content">View all <IconChevronRight size={17} /></Link></div>{contentList(true)}</section>
         </div></>}
         {view === "content" && <>{header("Manage the publication", "Content")} {contentList()}</>}
-        {(view === "new" || view === "edit") && <>{header("Content", view === "new" ? "New content" : "Edit content", false)}<div className="editor-breadcrumb"><a href="/cms/content">Content</a><IconChevronRight size={15} /><span>{view === "new" ? "New" : form.title || "Loading"}</span></div>{editor}</>}
+        {(view === "new" || view === "edit") && <>{header("Content", view === "new" ? "New content" : "Edit content", false)}<div className="editor-breadcrumb"><Link href="/cms/content">Content</Link><IconChevronRight size={15} /><span>{view === "new" ? "New" : form.title || "Loading"}</span></div>{editor}</>}
         {view === "taxonomies" && <>{header("Organize the publication", "Taxonomies", false)}
           {can("manage_taxonomies") && <section className="create-taxonomy-panel"><div><p className="eyebrow">Custom structure</p><h2>Create a taxonomy</h2><p>Add a reusable classification such as Region, Audience, Format, or Product.</p></div><div className="taxonomy-form"><label><span>Name</span><input value={newTaxonomy.label} onChange={(event) => setNewTaxonomy((current) => ({ ...current, label: event.target.value, key: current.key || slugify(event.target.value).replace(/-/g, "_") }))} placeholder="Audience" /></label><label><span>API key</span><input value={newTaxonomy.key} onChange={(event) => setNewTaxonomy((current) => ({ ...current, key: slugify(event.target.value).replace(/-/g, "_") }))} placeholder="audience" /></label><label className="wide"><span>Description</span><input value={newTaxonomy.description} onChange={(event) => setNewTaxonomy((current) => ({ ...current, description: event.target.value }))} placeholder="Who this content is intended for" /></label><label className="hierarchy-toggle"><input type="checkbox" checked={newTaxonomy.hierarchical} onChange={(event) => setNewTaxonomy((current) => ({ ...current, hierarchical: event.target.checked }))} /><span>Allow parent and child terms</span></label><button className="button" type="button" onClick={() => void createTaxonomy()}><IconPlus size={18} /><span>Create taxonomy</span></button></div></section>}
           <div className="taxonomy-admin-grid">{studio?.taxonomies.map((taxonomy) => <section className="taxonomy-admin-card" key={taxonomy.id}><div className="panel-heading"><div><h2>{taxonomy.label}</h2></div><span>{taxonomy.terms.length} terms</span></div><p>{taxonomy.description || `Manage the terms available under ${taxonomy.label}.`}</p><div className="taxonomy-term-list">{taxonomy.terms.map((term) => <span key={term.id}>{term.name}<small>/{term.slug}</small></span>)}</div>{can("manage_taxonomies") && <div className="new-term"><input value={newTerms[taxonomy.id] ?? ""} onChange={(event) => setNewTerms((current) => ({ ...current, [taxonomy.id]: event.target.value }))} placeholder="Add terms separated by commas" /><button type="button" onClick={() => void createTerm(taxonomy)} aria-label={`Add ${taxonomy.label} terms`} title="Add terms"><IconPlus size={18} /></button></div>}</section>)}</div></>}
-        {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<SeoWorkspace contentTypes={studio?.contentTypes ?? []} initialSharing={studio?.socialSharing ?? null} /></>}
-        {view === "ai" && <>{header("", "AI & automation", <button type="button" className="studio-action refresh-action" onClick={() => setAiRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<AiWorkspace refreshKey={aiRefreshKey} /></>}
-        {view === "themes" && <>{header("", "Themes", <button type="button" className="studio-action refresh-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="theme" refreshKey={extensionRefreshKey} /></>}
-        {view === "plugins" && <>{header("", "Plugins", <button type="button" className="studio-action refresh-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="plugin" refreshKey={extensionRefreshKey} /></>}
+        {view === "seo" && <>{header("Search and social presentation", "SEO & sharing", false)}<SeoWorkspace contentTypes={studio.contentTypes} initialSharing={studio.socialSharing} initialReport={studio.seoReport} /></>}
+        {view === "ai" && <>{header("", "AI & automation", <button type="button" className="studio-action refresh-action" onClick={() => setAiRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<AiWorkspace refreshKey={aiRefreshKey} initialData={studio.ai} /></>}
+        {view === "themes" && <>{header("", "Themes", <button type="button" className="studio-action refresh-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="theme" refreshKey={extensionRefreshKey} initialData={studio.extensions} /></>}
+        {view === "plugins" && <>{header("", "Plugins", <button type="button" className="studio-action refresh-action" onClick={() => setExtensionRefreshKey((value) => value + 1)}><IconRefresh size={17} /><span>Refresh</span></button>)}<ExtensionsWorkspace kind="plugin" refreshKey={extensionRefreshKey} initialData={studio.extensions} /></>}
         {view === "users" && <>{header("People, roles, and access", "Users", false)}
-          <div className="users-toolbar"><label className="studio-search"><span>Search users</span><div className="search-control"><IconSearch size={18} /><input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Name, email, or username" /></div></label><a className="button" href="/cms/users/new"><IconUserPlus size={18} /> Add user</a></div>
+          <div className="users-toolbar"><label className="studio-search"><span>Search users</span><div className="search-control"><IconSearch size={18} /><input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Name, email, or username" /></div></label><Link className="button" href="/cms/users/new"><IconUserPlus size={18} /> Add user</Link></div>
           <section className="registration-panel"><div className="panel-heading"><div><p className="eyebrow">Registration</p><h2>New account policy</h2></div><IconSettings size={22} /></div><p>Choose whether public signups are active immediately, wait for approval, or are disabled.</p><div className="registration-modes">{([{ value: "open", label: "Open", description: "Signups become active immediately." }, { value: "approval", label: "Require approval", description: "Signups remain pending until reviewed." }, { value: "closed", label: "Closed", description: "Only administrators can create users." }] as const).map((mode) => <button type="button" className={studio?.registration?.mode === mode.value ? "active" : ""} key={mode.value} onClick={() => void saveRegistration(mode.value, studio?.registration?.default_role ?? "subscriber")}><IconShieldCheck size={19} /><span><b>{mode.label}</b><small>{mode.description}</small></span>{studio?.registration?.mode === mode.value && <IconCheck size={18} />}</button>)}</div><div className="registration-default"><span>Default signup role</span><ThemeSelect ariaLabel="Default signup role" value={studio?.registration?.default_role ?? "subscriber"} onChange={(value) => void saveRegistration(studio?.registration?.mode ?? "approval", value)} options={(studio?.roles ?? []).filter((role) => role.role_key !== "super_admin").map((role) => ({ value: role.role_key, label: role.name }))} /></div></section>
-          <section className="users-list-panel"><div className="user-list-stats"><span><b>{studio?.users.length ?? 0}</b> total</span><span><b>{studio?.users.filter((user) => user.status === "active").length ?? 0}</b> active</span><span><b>{studio?.users.filter((user) => user.status === "pending").length ?? 0}</b> pending</span></div><div className="users-table" role="table" aria-label="Users"><div className="users-table-head" role="row"><span>User</span><span>Role</span><span>Status</span><span>Last sign-in</span><span /></div>{filteredUsers.map((user) => <a className="users-table-row" role="row" href={`/cms/users/${user.id}`} key={user.id}><span className="user-identity"><i>{user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.name.slice(0, 1).toUpperCase()}</i><span><b>{user.name}</b><small>{user.email} · @{user.username}</small></span></span><span>{user.role}</span><span><em className={`user-status ${user.status}`}>{user.status === "pending" ? "Pending approval" : user.status}</em></span><span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : "Never"}</span><IconChevronRight size={18} /></a>)}</div></section>
+          <section className="users-list-panel"><div className="user-list-stats"><span><b>{studio.users.length}</b> total</span><span><b>{studio.users.filter((user) => user.status === "active").length}</b> active</span><span><b>{studio.users.filter((user) => user.status === "pending").length}</b> pending</span></div><div className="users-table" role="table" aria-label="Users"><div className="users-table-head" role="row"><span>User</span><span>Role</span><span>Status</span><span>Last sign-in</span><span /></div>{filteredUsers.map((user) => <Link className="users-table-row" role="row" href={`/cms/users/${user.id}`} key={user.id}><span className="user-identity"><i>{user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.name.slice(0, 1).toUpperCase()}</i><span><b>{user.name}</b><small>{user.email} · @{user.username}</small></span></span><span>{user.role}</span><span><em className={`user-status ${user.status}`}>{user.status === "pending" ? "Pending approval" : user.status}</em></span><span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : "Never"}</span><IconChevronRight size={18} /></Link>)}</div></section>
         </>}
-        {(view === "userNew" || view === "userEdit") && <>{header(view === "userNew" ? "Create an account" : "Manage account", view === "userNew" ? "Add user" : userForm.display_name || "Loading…", false)}<div className="editor-breadcrumb"><a href="/cms/users">Users</a><IconChevronRight size={15} /><span>{view === "userNew" ? "New" : userForm.display_name || "Loading"}</span></div>{userEditor}</>}
+        {(view === "userNew" || view === "userEdit") && <>{header(view === "userNew" ? "Create an account" : "Manage account", view === "userNew" ? "Add user" : userForm.display_name || "Loading…", false)}<div className="editor-breadcrumb"><Link href="/cms/users">Users</Link><IconChevronRight size={15} /><span>{view === "userNew" ? "New" : userForm.display_name || "Loading"}</span></div>{userEditor}</>}
       </section>
     </main>
   );

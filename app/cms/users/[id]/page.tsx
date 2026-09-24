@@ -1,10 +1,10 @@
 import CmsStudio from "../../CmsStudio";
-import { requireCmsPage } from "../../../../lib/cms-page-auth";
+import { requireCmsStudioPage } from "../../../../lib/cms-page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const initialUser = await requireCmsPage(`/cms/users/${id}`, "manage_users");
-  return <CmsStudio view="userEdit" userId={Number(id)} initialUser={initialUser} />;
+  const studio = await requireCmsStudioPage(`/cms/users/${id}`, "userEdit", "manage_users");
+  return <CmsStudio view="userEdit" userId={Number(id)} initialStudio={studio} />;
 }

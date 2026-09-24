@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import CmsStudio from "../CmsStudio";
-import { requireCmsPage } from "../../../lib/cms-page-auth";
+import { requireCmsStudioPage } from "../../../lib/cms-page-auth";
 
 export const metadata: Metadata = {
   title: "SEO & sharing — CMS Studio",
@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function SeoPage() {
-  const initialUser = await requireCmsPage("/cms/seo");
-  return <CmsStudio view="seo" initialUser={initialUser} />;
+  const studio = await requireCmsStudioPage("/cms/seo", "seo");
+  return <CmsStudio view="seo" initialStudio={studio} />;
 }

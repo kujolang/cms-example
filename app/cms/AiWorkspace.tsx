@@ -1,17 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconCodeDots, IconLock, IconPlugConnected, IconShieldCheck } from "@tabler/icons-react";
-
-type Ability = { name: string; label: string; description: string; category: string; permission: string; enabled: boolean; manageable: boolean; source: string; source_name?: string; definition_digest: string; definition: { id: string; version: string; idempotency: { mode: "intrinsic" | "keyed" | "none" } }; annotations: { readonly: boolean; destructive: boolean; idempotent: boolean; requires_confirmation: boolean } };
-type Connector = { key: string; label: string; purpose: string; mode: string; configured: boolean; enabled: boolean; manageable: boolean; source: string; source_name?: string; status: string; approval_required: boolean; secret_storage: string };
-type AiControlPlane = {
-  abilities: { items: Ability[]; count: number };
-  connectors: { items: Connector[]; count: number; secrets_exposed: boolean };
-  mcp: { tools: unknown[]; count: number; protocol: string };
-  webmcp: { enabled: boolean; automatic: boolean; tools: unknown[]; security: { published_only: boolean; read_only: boolean } };
-  extensions: { abilities: Array<Record<string, unknown>>; connectors: Array<Record<string, unknown>>; counts: { abilities: number; connectors: number } };
-};
+import type { AiControlPlane } from "../../lib/cms-studio-data";
 
 async function loadControlPlane() {
   const response = await fetch("/api/cms?resource=ai", { cache: "no-store" });
@@ -21,12 +12,17 @@ async function loadControlPlane() {
   return payload.data;
 }
 
-export default function AiWorkspace({ refreshKey = 0 }: { refreshKey?: number }) {
-  const [data, setData] = useState<AiControlPlane | null>(null);
+export default function AiWorkspace({ refreshKey = 0, initialData }: { refreshKey?: number; initialData: AiControlPlane | null }) {
+  const [data, setData] = useState<AiControlPlane | null>(initialData);
   const [error, setError] = useState("");
   const [mutating, setMutating] = useState("");
   const [health, setHealth] = useState<Record<string, string>>({});
+  const hydrated = useRef(Boolean(initialData));
   useEffect(() => {
+    if (hydrated.current && refreshKey === 0) {
+      hydrated.current = false;
+      return;
+    }
     let active = true;
     loadControlPlane().then((next) => { if (active) setData(next); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "AI control plane is unavailable."); });
     return () => { active = false; };

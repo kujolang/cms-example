@@ -13,29 +13,7 @@ import {
 } from "@tabler/icons-react";
 
 type Kind = "theme" | "plugin";
-type Manifest = {
-  key: string;
-  name: string;
-  version: string;
-  description?: string;
-  author?: { name?: string; url?: string };
-  distribution?: { repository?: string; homepage?: string };
-  admin?: { icon?: string };
-  supports?: string[];
-  capabilities?: string[];
-  runtime?: string;
-};
-type InstalledExtension = {
-  id: number;
-  status: "active" | "inactive";
-  manifest: Manifest;
-  package?: { filename?: string; size_bytes?: number; sha256?: string } | null;
-  updated_at?: string | number;
-};
-type ExtensionData = {
-  catalog: { themes: InstalledExtension[]; plugins: InstalledExtension[]; counts: { themes: number; plugins: number } };
-  contracts: { package?: { max_archive_bytes?: number; max_files?: number } };
-};
+import type { ExtensionData, InstalledExtension } from "../../lib/cms-studio-data";
 
 async function extensionRequest<T>(options?: RequestInit) {
   const response = await fetch("/api/cms/extensions", options);
@@ -53,8 +31,8 @@ function formatBytes(value = 0) {
   return value < 1024 * 1024 ? `${Math.ceil(value / 1024)} KB package` : `${(value / 1024 / 1024).toFixed(1)} MB package`;
 }
 
-export default function ExtensionsWorkspace({ kind, refreshKey = 0 }: { kind: Kind; refreshKey?: number }) {
-  const [data, setData] = useState<ExtensionData | null>(null);
+export default function ExtensionsWorkspace({ kind, refreshKey = 0, initialData }: { kind: Kind; refreshKey?: number; initialData: ExtensionData | null }) {
+  const [data, setData] = useState<ExtensionData | null>(initialData);
   const [installKind, setInstallKind] = useState<Kind | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [activate, setActivate] = useState(true);
@@ -62,6 +40,7 @@ export default function ExtensionsWorkspace({ kind, refreshKey = 0 }: { kind: Ki
   const [notice, setNotice] = useState("");
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hydrated = useRef(Boolean(initialData));
 
   const refresh = async () => {
     try { setData(await extensionRequest<ExtensionData>()); setNotice(""); }
@@ -69,6 +48,10 @@ export default function ExtensionsWorkspace({ kind, refreshKey = 0 }: { kind: Ki
   };
 
   useEffect(() => {
+    if (hydrated.current && refreshKey === 0) {
+      hydrated.current = false;
+      return;
+    }
     let active = true;
     void extensionRequest<ExtensionData>().then((next) => { if (active) { setData(next); setNotice(""); } }).catch((error) => { if (active) setNotice(error instanceof Error ? error.message : `${kind === "theme" ? "Themes" : "Plugins"} are unavailable.`); }).finally(() => { if (active) setWorking(false); });
     return () => { active = false; };

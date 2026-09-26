@@ -15,9 +15,10 @@ import {
   updateCmsUser,
   verifyPassword,
 } from "../../../../lib/cms-user-store";
+import { BoundedRateLimit } from "../../../../lib/bounded-rate-limit";
 
-const failures = new Map<string, { count: number; resetAt: number }>();
-const registrationAttempts = new Map<string, { count: number; resetAt: number }>();
+const failures = new BoundedRateLimit(5, 15 * 60 * 1000);
+const registrationAttempts = new BoundedRateLimit(5, 15 * 60 * 1000);
 
 function json(data: unknown, status = 200, headers?: HeadersInit) {
   return Response.json({ ok: status < 400, data: status < 400 ? data : undefined, error: status >= 400 ? data : undefined }, { status, headers: { "Cache-Control": "no-store", ...Object.fromEntries(new Headers(headers).entries()) } });
@@ -30,18 +31,15 @@ function sameOrigin(request: Request) {
 
 export async function loginStudioCredentials(request: Request, email: string, password: string) {
   const key = `${request.headers.get("cf-connecting-ip") ?? "local"}:${email.toLowerCase()}`;
-  const now = Date.now();
-  const failure = failures.get(key);
-  if (failure && failure.resetAt > now && failure.count >= 5) {
+  if (!failures.consume(key)) {
     return { user: null, error: "Too many sign-in attempts. Try again in 15 minutes.", status: 429 } as const;
   }
 
   const result = await authenticateLocalCredentials(request, email, password);
   if (!result.user) {
-    failures.set(key, { count: failure && failure.resetAt > now ? failure.count + 1 : 1, resetAt: now + 15 * 60 * 1000 });
     return { user: null, error: result.error || "The email or password is incorrect.", status: 401 } as const;
   }
-  failures.delete(key);
+  failures.clear(key);
   return { user: result.user, error: "", status: 200 } as const;
 }
 
@@ -60,10 +58,7 @@ export async function POST(request: Request) {
   }
   if (input.action === "signup") {
     const registrationKey = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-    const now = Date.now();
-    const attempt = registrationAttempts.get(registrationKey);
-    if (attempt && attempt.resetAt > now && attempt.count >= 5) return json("Too many registration attempts. Try again in 15 minutes.", 429);
-    registrationAttempts.set(registrationKey, { count: attempt && attempt.resetAt > now ? attempt.count + 1 : 1, resetAt: now + 15 * 60 * 1000 });
+    if (!registrationAttempts.consume(registrationKey)) return json("Too many registration attempts. Try again in 15 minutes.", 429);
     const registration = await getRegistrationSettings();
     if (registration.mode === "closed") return json("New account registration is currently closed.", 403);
     const email = String(input.email ?? "").trim().toLowerCase();
@@ -78,7 +73,7 @@ export async function POST(request: Request) {
     try {
       const credential = await derivePassword(password);
       const record = await createCmsUser({ user_key: username, username, email, display_name: displayName, role_key: registration.default_role, status, approved_by: status === "active" ? "open-registration" : "", ...credential, social: {} });
-      registrationAttempts.delete(registrationKey);
+      registrationAttempts.clear(registrationKey);
       if (status === "pending") return json({ authenticated: false, pending: true, message: "Your account was created and is waiting for approval." }, 201);
       const { user } = await authenticateLocalCredentials(request, email, password);
       if (!user) return json("Account created, but sign-in could not be completed.", 502);

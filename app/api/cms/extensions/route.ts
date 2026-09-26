@@ -1,10 +1,6 @@
 import { authenticateStudioRequest, hasCapability } from "../../../../lib/cms-auth";
 import { inspectExtensionPackage } from "../../../../lib/extension-package";
-
-const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
-const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
-
-type CmsEnvelope<T> = { ok: boolean; data?: T; error?: { message?: string } };
+import { cmsServerRequest } from "../../../../lib/cms-server-client";
 
 function reply(data: unknown, status = 200) {
   return Response.json({ ok: status < 400, data: status < 400 ? data : undefined, error: status >= 400 ? String(data) : undefined }, { status, headers: { "Cache-Control": "no-store" } });
@@ -22,15 +18,7 @@ function bytesToBase64(bytes: Uint8Array) {
 }
 
 async function cmsRequest<T>(pathname: string, options: RequestInit = {}) {
-  const upstream = await fetch(new URL(pathname, CMS_BASE_URL), {
-    ...options,
-    cache: "no-store",
-    headers: { Accept: "application/json", Authorization: `Bearer ${CMS_API_TOKEN}`, ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers ?? {}) },
-  });
-  let payload: CmsEnvelope<T>;
-  try { payload = await upstream.json() as CmsEnvelope<T>; } catch { throw new Error(`CMS returned an invalid response (${upstream.status}).`); }
-  if (!upstream.ok || !payload.ok || payload.data === undefined) throw new Error(payload.error?.message ?? `CMS request failed with ${upstream.status}.`);
-  return payload.data;
+  return cmsServerRequest<T>(pathname, options);
 }
 
 async function authorize(request: Request) {

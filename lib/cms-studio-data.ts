@@ -1,10 +1,6 @@
 import { hasCapability, studioUsersFor, type CmsCapability, type StudioUser } from "./cms-auth";
 import { getRegistrationSettings, getSocialSharingSettings, listCmsRoles } from "./cms-user-store";
-
-const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
-const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
-
-type CmsEnvelope<T> = { ok: boolean; data?: T; error?: { message?: string } };
+import { cmsServerRequest } from "./cms-server-client";
 const inFlightReads = new Map<string, Promise<unknown>>();
 const waitingReaders: Array<() => void> = [];
 let activeReaders = 0;
@@ -56,14 +52,7 @@ export async function cmsStudioRequest<T>(pathname: string, options: RequestInit
     if (isRead && activeReaders >= MAX_CONCURRENT_READS) await new Promise<void>((resolve) => waitingReaders.push(resolve));
     if (isRead) activeReaders += 1;
     try {
-      const upstream = await fetch(new URL(pathname, CMS_BASE_URL), {
-        ...options,
-        cache: "no-store",
-        headers: { Accept: "application/json", Authorization: `Bearer ${CMS_API_TOKEN}`, ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers ?? {}) },
-      });
-      const payload = await upstream.json() as CmsEnvelope<T>;
-      if (!upstream.ok || !payload.ok || payload.data === undefined) throw new Error(payload.error?.message ?? `CMS request failed with ${upstream.status}`);
-      return payload.data;
+      return await cmsServerRequest<T>(pathname, options);
     } finally {
       if (isRead) {
         activeReaders -= 1;

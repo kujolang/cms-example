@@ -10,6 +10,7 @@ import {
   verifyPassword,
   type CmsUserRecord,
 } from "./cms-user-store";
+import { cmsServerRequest } from "./cms-server-client";
 
 export type CmsCapability =
   | "view_content"
@@ -44,8 +45,6 @@ export type StudioUser = {
 };
 
 export const CMS_SESSION_COOKIE = "kujo_cms_session";
-const CMS_BASE_URL = process.env.CMS_BASE_URL ?? "http://127.0.0.1:4200";
-const CMS_API_TOKEN = process.env.CMS_API_TOKEN ?? "change-me-in-production";
 
 const ROLE_NAMES: Record<string, StudioRole> = {
   super_admin: "Administrator",
@@ -95,18 +94,13 @@ export function studioUserFromRecord(record: CmsUserRecord, source: StudioUser["
 }
 
 type IdentityUser = CmsUserRecord & { role_name: string; capabilities: CmsCapability[] };
-type IdentityEnvelope<T> = { ok: boolean; data?: T; error?: { message?: string } };
 
 function studioUserFromIdentity(record: IdentityUser, source: StudioUser["source"] = "cms"): StudioUser {
   return { ...studioUserFromRecord(record, source), role: (ROLE_NAMES[record.role_key] ?? record.role_name ?? "Subscriber") as StudioRole, capabilities: record.capabilities };
 }
 
 async function identityRequest<T>(path: string, options: RequestInit = {}, session = "") {
-  const response = await fetch(new URL(path, CMS_BASE_URL), { ...options, cache: "no-store", headers: { Accept: "application/json", ...(session ? { "X-CMS-Session": session } : { Authorization: `Bearer ${CMS_API_TOKEN}` }), ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers ?? {}) } });
-  const text = await response.text(); let payload: IdentityEnvelope<T> | null = null;
-  if (text) { try { payload = JSON.parse(text) as IdentityEnvelope<T>; } catch { throw new Error(`CMS returned an invalid identity response (${response.status}).`); } }
-  if (!response.ok || !payload?.ok || payload.data === undefined) throw new Error(payload?.error?.message ?? `CMS identity request failed with ${response.status}`);
-  return payload.data;
+  return cmsServerRequest<T>(path, { ...options, session });
 }
 
 export async function createSessionToken(_request: Request, user: StudioUser) {

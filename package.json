@@ -16,6 +16,7 @@
     "build": "bash scripts/run-app.sh build",
     "start": "bash scripts/run-app.sh start",
     "test": "bash scripts/test.sh",
+    "check": "npm run lint && npm test && npm audit --audit-level=low",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

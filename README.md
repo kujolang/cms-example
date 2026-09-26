@@ -111,9 +111,14 @@ Local startup generates a private bootstrap token in `.data/cms-api-token`, and 
 ## Validate
 
 ```bash
-npm test
-npm audit
+npm run check
 ```
+
+The test harness starts an isolated CMS on an available loopback port, seeds a
+temporary database, builds the application, runs rendered and authentication
+regressions, and removes the temporary state. It does not depend on a developer
+server or `.data/cms.db`; the sibling `../cms` checkout and a Kujo executable are
+required. `npm run check` also runs lint and the dependency audit.
 
 The pinned `@esbuild-kit/core-utils` esbuild override in `package.json` keeps Drizzle Kit's legacy loader off an affected esbuild release. Remove it only after Drizzle Kit drops that loader or supplies a patched compatible version. The Node render tests supply an empty `cloudflare:workers` tracing namespace; the real Cloudflare runtime is unchanged.
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { access, readFile, readdir } from "node:fs/promises";
-import test from "node:test";
+import test, { before } from "node:test";
 
 async function render(pathname = "/", init = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -27,9 +27,13 @@ async function cmsSessionCookie() {
     headers: { "Content-Type": "application/json", origin: "http://localhost" },
     body: JSON.stringify({ action: "login", email: "admin@fieldnotes.local", password: "fieldnotes-demo" }),
   });
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, await response.clone().text());
   return response.headers.get("set-cookie")?.split(";")[0] ?? "";
 }
+
+before(async () => {
+  await cmsSessionCookie();
+});
 
 test("server-renders the CMS-backed publication", async () => {
   const response = await render();
@@ -171,7 +175,7 @@ test("supports approval-based signup and self-service accounts", async () => {
     headers: { "Content-Type": "application/json", origin: "http://localhost" },
     body: JSON.stringify({ action: "signup", display_name: "Test Subscriber", username: `test-${suffix}`, email: `test-${suffix}@example.com`, password: "subscriber-test-password" }),
   });
-  assert.equal(signup.status, 201);
+  assert.equal(signup.status, 201, await signup.clone().text());
   const signupPayload = await signup.json();
   assert.equal(signupPayload.data.pending, true);
   const signupPage = await render("/signup");

@@ -61,5 +61,6 @@ else
 fi
 
 wait_for_url "Backend" "http://127.0.0.1:4200/health" "${BACKEND_LOG}"
+CMS_BASE_URL=http://127.0.0.1:4200 node "${PROJECT_DIR}/scripts/check-backend-version.mjs"
 wait_for_url "Frontend" "http://localhost:3000/" "${FRONTEND_LOG}"
 printf 'Studio ready: http://localhost:3000/cms\n'

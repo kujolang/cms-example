@@ -70,6 +70,8 @@ if [[ "${ready}" != true ]]; then
 fi
 
 cd "${PROJECT_DIR}"
+node --test tests/backend-version.test.mjs
+node scripts/check-backend-version.mjs
 npm run cms:seed >/dev/null
 npm run brand:check
 npm run build

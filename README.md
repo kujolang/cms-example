@@ -1,6 +1,6 @@
 # Kujo CMS Example
 
-This project is a working example of the site-building flow in the Kujo CMS `HOWTO.md`.
+CMS Example 1.2.0 supplies the public frontend and Studio for [Kujo CMS 1.2.0](https://github.com/kujolang/cms/releases/tag/v1.2.0). `cms-backend.json` records the tested backend release. The Field Notes theme keeps its separate 1.0.2 manifest version.
 
 Agent-facing code map and targeted verification: [`AGENTS.md`](AGENTS.md).
 
@@ -28,10 +28,10 @@ All shipped raster assets use WebP. Public article cards lazy-load images, while
 
 ## Run It
 
-Install dependencies once:
+Check out CMS v1.2.0 in `../cms` and run `kennel install` there. Then install this frontend’s dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
 Start the backend, frontend, and Studio together. This command is idempotent: if either listener is already running, it reports that instead of replacing the logs with an address-in-use error.

@@ -1,6 +1,6 @@
 {
   "name": "kujo-cms-example",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -28,9 +28,9 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.57.2",
+    "@cloudflare/vite-plugin": "1.63.1",
     "@eslint/js": "9.39.4",
-    "@next/eslint-plugin-next": "16.2.6",
+    "@next/eslint-plugin-next": "16.4.0",
     "@openai/sites-vite-plugin": "0.1.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
@@ -51,7 +51,7 @@
     "typescript-eslint": "8.59.3",
     "vinext": "1.0.0-beta.11",
     "vite": "8.3.0",
-    "wrangler": "4.136.2"
+    "wrangler": "4.149.0"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

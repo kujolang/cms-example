@@ -10,4 +10,12 @@ On October 12, 2026, the full `npm run check` audit found 13 high-severity depen
 
 The remaining findings share one upstream cause: [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), recursive stack exhaustion in `braces` through 3.0.3. The advisory has no patched release. `fast-glob`, `micromatch`, the Next.js lint plugin, and Vinext's CommonJS/dynamic-import build plugins inherit the finding. This is a build/lint dependency path; no unauthenticated application exploit was demonstrated in this review.
 
-The dependency-audit gate remains enabled and fails. Do not call the full gate green or publish an unqualified clean-audit claim. Update the dependency when a reviewed fix exists and rerun `npm run check`. The backend CMS release has its own separate release gate and no npm runtime dependency on this toolchain.
+At that point, the enabled dependency-audit gate still failed. The backend CMS release has its own separate release gate and no npm runtime dependency on this toolchain.
+
+## October 21 dependency remediation
+
+Vite 8.3.5 replaces 8.3.0 to address the launch-editor advisories. Upstream braces still has no published fix, so the root override installs the private `@kujolang/braces-depth-guard` 3.0.3-kujo.1 fork from `vendor/braces`. Its MIT provenance is preserved; parser stack growth and all recursive AST walkers reject excessive nesting before stack exhaustion, including direct AST/library calls. The fixed 128-level AST bound cannot be disabled by caller options. See the fork security note for maintenance responsibility and the intended upstream replacement.
+
+An upstream compile call with 4,999 balanced parentheses reproduces native stack exhaustion within the character limit. The installed fork rejects it with `ERR_BRACES_DEPTH`. Regression tests also cover braces, unclosed blocks, direct ASTs, normal expansion/escaping/ranges, and actual micromatch/fast-glob use. Independent review compared 228 ordinary/malformed operations against upstream without a behavior difference. A clean `npm ci --ignore-scripts` resolves the local fork correctly.
+
+`npm run check` passes with patched Node 24.22.1: dependency-security tests, lint (existing warnings only), isolated CMS, build, rendered public HTML, authenticated/unauthenticated Studio boundaries, unit tests, and audit. The audit reports zero vulnerabilities; the fork regression tests remain a separate mandatory check because registry audit does not validate local patch correctness.

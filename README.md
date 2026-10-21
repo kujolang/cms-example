@@ -4,6 +4,8 @@ CMS Example 1.2.0 supplies the public frontend and Studio for [Kujo CMS 1.2.0](h
 
 Agent-facing code map and targeted verification: [`AGENTS.md`](AGENTS.md).
 
+Dependency security: Vite is pinned to 8.3.5. Until upstream ships a braces fix, this repository installs its reviewed, depth-bounded private fork via an npm override. See [`vendor/braces/SECURITY-PATCH.md`](vendor/braces/SECURITY-PATCH.md). `npm run check` runs both fork regression tests and the full dependency audit.
+
 It includes:
 
 - A public editorial frontend at `http://localhost:3000/`

@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "scripts": {
     "local:start": "bash scripts/start-local.sh",

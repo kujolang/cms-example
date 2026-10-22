@@ -1,6 +1,6 @@
-# CMS 1.2.0 backend alignment
+# CMS 1.2.1 backend alignment
 
-`cms-backend.json` pins the backend release verified by this adapter. Check out CMS v1.2.0, run `kennel install` there, and restart the backend. `npm run local:start` and the test harness query `/v1/contract` and reject a different service version.
+`cms-backend.json` pins the backend release verified by this adapter. Check out CMS v1.2.1, run `kennel install` there, and restart the backend. `npm run local:start` and the test harness query `/v1/contract` and reject a different service version.
 
 The public frontend and Studio share this backend. The Field Notes manifest remains 1.0.2; theme versions and the CMS service version are independent. The one-time Ability approval flow stays server-side and does not proxy an agent's execution through the Studio bootstrap token.
 
@@ -19,3 +19,7 @@ Vite 8.3.5 replaces 8.3.0 to address the launch-editor advisories. Upstream brac
 An upstream compile call with 4,999 balanced parentheses reproduces native stack exhaustion within the character limit. The installed fork rejects it with `ERR_BRACES_DEPTH`. Regression tests also cover braces, unclosed blocks, direct ASTs, normal expansion/escaping/ranges, and actual micromatch/fast-glob use. Independent review compared 228 ordinary/malformed operations against upstream without a behavior difference. A clean `npm ci --ignore-scripts` resolves the local fork correctly.
 
 `npm run check` passes with patched Node 24.22.1: dependency-security tests, lint (existing warnings only), isolated CMS, build, rendered public HTML, authenticated/unauthenticated Studio boundaries, unit tests, and audit. The audit reports zero vulnerabilities; the fork regression tests remain a separate mandatory check because registry audit does not validate local patch correctness.
+
+## October 22 release verification
+
+CMS Example 1.2.0 is released against CMS 1.2.1. The full check passed on Node 26.12.1, including the isolated backend, rendered frontend and Studio, authorization boundaries, dependency regression checks and a zero-vulnerability audit. The separately versioned embedded theme manifest remains 1.0.2.

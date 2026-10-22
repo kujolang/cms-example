@@ -1,6 +1,6 @@
 # Kujo CMS Example
 
-CMS Example 1.2.0 supplies the public frontend and Studio for [Kujo CMS 1.2.0](https://github.com/kujolang/cms/releases/tag/v1.2.0). `cms-backend.json` records the tested backend release. The Field Notes theme keeps its separate 1.0.2 manifest version.
+CMS Example 1.2.0 supplies the public frontend and Studio for [Kujo CMS 1.2.1](https://github.com/kujolang/cms/releases/tag/v1.2.1). `cms-backend.json` records the tested backend release. The Field Notes theme keeps its separate 1.0.2 manifest version.
 
 Agent-facing code map and targeted verification: [`AGENTS.md`](AGENTS.md).
 
@@ -30,7 +30,7 @@ All shipped raster assets use WebP. Public article cards lazy-load images, while
 
 ## Run It
 
-Check out CMS v1.2.0 in `../cms` and run `kennel install` there. Then install this frontend’s dependencies:
+Check out CMS v1.2.1 in `../cms` and run `kennel install` there. Then install this frontend’s dependencies:
 
 ```bash
 npm ci

@@ -5,7 +5,7 @@ import { once } from "node:events";
 import test from "node:test";
 
 for (const [name, status, body, passes] of [
-  ["matching release", 200, { data: { info: { version: "1.2.0" } } }, true],
+  ["matching release", 200, { data: { info: { version: "1.2.1" } } }, true],
   ["old backend", 200, { data: { info: { version: "1.1.0" } } }, false],
   ["missing version", 200, { data: {} }, false],
   ["failed contract", 503, { error: "unavailable" }, false],

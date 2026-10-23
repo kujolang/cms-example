@@ -1,5 +1,8 @@
 # Kujo CMS Example
 
+[![Version](https://img.shields.io/badge/version-1.2.0-black)](https://github.com/kujolang/cms-example)
+[![built for Kujo](https://img.shields.io/badge/built%20for-Kujo-white.svg)](https://github.com/kujolang/kujo)
+
 CMS Example 1.2.0 supplies the public frontend and Studio for [Kujo CMS 1.2.1](https://github.com/kujolang/cms/releases/tag/v1.2.1). `cms-backend.json` records the tested backend release. The Field Notes theme keeps its separate 1.0.2 manifest version.
 
 Agent-facing code map and targeted verification: [`AGENTS.md`](AGENTS.md).
